@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Neon Breach: Fracture Ops",
+  "productName": "Neon Breach Fracture Ops",
   "version": "0.1.0",
   "identifier": "com.neonbreach.fractureops",
   "build": {
@@ -30,7 +30,7 @@
     "targets": ["nsis", "msi"],
     "windows": {
       "nsis": {
-        "installMode": "perUser",
+        "installMode": "currentUser",
         "displayLanguageSelector": true
       }
     }

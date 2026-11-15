@@ -64,13 +64,12 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
       - name: Install dependencies and initialize Android
         run: |
           pnpm install --frozen-lockfile
           pnpm native:setup -- --install
           pnpm native:setup -- --android
+          test -n "$ANDROID_HOME" || test -n "$ANDROID_SDK_ROOT"
       - name: Build debug APK
         run: pnpm android:build:debug
       - name: Upload APK
@@ -97,5 +96,5 @@ jobs:
           cache: pnpm
       - name: Test authoritative server
         run: |
-          pnpm install --frozen-lockfile
+          pnpm --dir server install --frozen-lockfile
           pnpm test:server
