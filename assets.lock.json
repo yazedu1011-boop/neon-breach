@@ -1,6 +1,94 @@
 {
   "version": 2,
-  "groups": {},
+  "groups": {
+    "art": {
+      "name": "Art",
+      "order": 10
+    },
+    "audio": {
+      "name": "Audio",
+      "order": 20
+    },
+    "models": {
+      "name": "Models",
+      "order": 30
+    },
+    "share": {
+      "name": "Share",
+      "order": 40
+    }
+  },
   "bundles": {},
-  "assets": {}
+  "assets": {
+    "assets/art/nyx-reference.png": {
+      "path": "/manus-storage/game/sha256/41aebdb83816d4002b4c398bbc06253b096df239c7f6a4742dc11a8dbb02009c.png",
+      "sha256": "sha256:41aebdb83816d4002b4c398bbc06253b096df239c7f6a4742dc11a8dbb02009c",
+      "size": 4138854,
+      "assetType": "image",
+      "groupId": "art"
+    },
+    "assets/audio/dash.mp3": {
+      "path": "/manus-storage/game/sha256/7d0d8c1bbe52eebfdfa102f4fe7d60bcf1214320b26f9fb3d04e661320604fe3.mp3",
+      "sha256": "sha256:7d0d8c1bbe52eebfdfa102f4fe7d60bcf1214320b26f9fb3d04e661320604fe3",
+      "size": 12163,
+      "assetType": "audio",
+      "groupId": "audio"
+    },
+    "assets/audio/lobby-theme.mp3": {
+      "path": "/manus-storage/game/sha256/0affad052e2c220d7cb99e7244cfc94bbe97de223ce4dddbbf127eb7c30fd499.mp3",
+      "sha256": "sha256:0affad052e2c220d7cb99e7244cfc94bbe97de223ce4dddbbf127eb7c30fd499",
+      "size": 4280304,
+      "assetType": "audio",
+      "groupId": "audio"
+    },
+    "assets/audio/plasma-shot.mp3": {
+      "path": "/manus-storage/game/sha256/921ff51256f2584de013c5e11ea98df525e130def2712d985f64186e296ae88a.mp3",
+      "sha256": "sha256:921ff51256f2584de013c5e11ea98df525e130def2712d985f64186e296ae88a",
+      "size": 8820,
+      "assetType": "audio",
+      "groupId": "audio"
+    },
+    "assets/audio/reward.mp3": {
+      "path": "/manus-storage/game/sha256/164abbf802873fd25d57d59bfe286b8e962a1427d4ea7380cee76314f9f0566c.mp3",
+      "sha256": "sha256:164abbf802873fd25d57d59bfe286b8e962a1427d4ea7380cee76314f9f0566c",
+      "size": 20105,
+      "assetType": "audio",
+      "groupId": "audio"
+    },
+    "assets/audio/ui-confirm.mp3": {
+      "path": "/manus-storage/game/sha256/505d40c91dab2b16d7c4769436b7ce7f39397dd36d4f05cba154bde84f218be4.mp3",
+      "sha256": "sha256:505d40c91dab2b16d7c4769436b7ce7f39397dd36d4f05cba154bde84f218be4",
+      "size": 8820,
+      "assetType": "audio",
+      "groupId": "audio"
+    },
+    "assets/models/nyx-vale-animated.glb": {
+      "path": "/manus-storage/game/sha256/0d4597f90d5af0e134bf7e9825e6dd9bcfd0a5957bb56e85203299d7d992c914.glb",
+      "sha256": "sha256:0d4597f90d5af0e134bf7e9825e6dd9bcfd0a5957bb56e85203299d7d992c914",
+      "size": 20459212,
+      "assetType": "model",
+      "groupId": "models"
+    },
+    "assets/models/nyx-vale-rigged.glb": {
+      "path": "/manus-storage/game/sha256/edf7caa05fe49abb40de1602ba6564cce22b45228e0f0f516d047b4eff62f28c.glb",
+      "sha256": "sha256:edf7caa05fe49abb40de1602ba6564cce22b45228e0f0f516d047b4eff62f28c",
+      "size": 20203872,
+      "assetType": "model",
+      "groupId": "models"
+    },
+    "assets/models/nyx-vale.glb": {
+      "path": "/manus-storage/game/sha256/7984cd83eaf20433858260a960c28bfa0c1b462c7ede77f9db361c37fcc3dd3d.glb",
+      "sha256": "sha256:7984cd83eaf20433858260a960c28bfa0c1b462c7ede77f9db361c37fcc3dd3d",
+      "size": 20044392,
+      "assetType": "model",
+      "groupId": "models"
+    },
+    "assets/share/favicon.png": {
+      "path": "/manus-storage/game/sha256/7571eb680286f7e1c49e06d9b3913bdedd007b748a7d5988f7b030e903ba6269.png",
+      "sha256": "sha256:7571eb680286f7e1c49e06d9b3913bdedd007b748a7d5988f7b030e903ba6269",
+      "size": 943,
+      "assetType": "image",
+      "groupId": "share"
+    }
+  }
 }

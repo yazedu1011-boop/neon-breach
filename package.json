@@ -4,14 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/manus-game-assets/restore.mjs && vite",
     "dev:server": "pnpm --dir server start",
-    "build": "tsc --noEmit && vite build && node scripts/check-size.mjs",
+    "build": "node scripts/manus-game-assets/restore.mjs && node scripts/manus-game-sharing/build.mjs",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:server": "pnpm --dir server test",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "manus:build-source": "tsc --noEmit && vite build && node scripts/check-size.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

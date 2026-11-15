@@ -2,284 +2,143 @@ import * as THREE from 'three'
 import type { Audio } from '../engine/audio'
 import type { Renderer } from '../engine/renderer'
 import type { Quality } from '../engine/save'
-import { SEATS, type EventKind, type Hit, type Point, type Pose, type Role, type RoomState, type Rules, type Seat, type Welcome } from '../net/protocol'
 import { Arena } from './arena'
-import { BallView, RemoteTrack, SEAT_COLORS } from './balls'
-import { ArenaCamera, cameraSide } from './camera'
-import { CONFIG } from './config'
+import { ArenaCamera } from './camera'
 import { Effects } from './fx'
-import { OwnBall, type Motion } from './localBall'
 
-export type Mode = 'attract' | 'online'
+export type GameAudio = { shot?: AudioBuffer; dash?: AudioBuffer; reward?: AudioBuffer }
+export type GameHud = { health: number; shield: number; ammo: number; reserve: number; mode: 'fps' | 'tps'; ability: number; dash: number; targetCount: number; score: number; message: string; npc: string; fps: number }
+type Target = { root: THREE.Group; hp: number; maxHp: number; respawn: number; label: string }
+type Npc = { root: THREE.Group; name: string; dialogue: string[]; index: number }
 
-export type GameHooks = {
-  /** A new server event (round start, ring-out, point, match end) for the HUD. */
-  event(kind: EventKind, state: RoomState): void
-}
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+const neon = (color: string, intensity = 1.6) => new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: 0.42, emissive: color, emissiveIntensity: intensity })
 
-/** The own ball as `main.ts` publishes it. `urgent` asks for a pose now (after a bump or the edge). */
-export type OwnPose = { round: number; x: number; z: number; vx: number; vz: number; urgent: boolean }
-/** The half of a contact that the owner of seat `to` must apply, as `main.ts` sends it. */
-export type OutgoingHit = { to: Seat; round: number; jx: number; jz: number }
-
-/** Closing speed, in metres per second, from which a contact plays sound, particles and shake. */
-const BUMP_EFFECT_SPEED = 1.5
-const BUMP_EFFECT_COOLDOWN = 0.12
-
-/**
- * One online match on this client. It simulates the own ball (`OwnBall`), draws every other ball
- * in present time (`RemoteTrack`), and renders camera, particles and sound locally. The server
- * sends phases, ring-outs and scores in `room` messages. `main.ts` owns the connection.
- */
 export class Game {
-  mode: Mode = 'attract'
-  role: Role = 'spectator'
-  state: RoomState | null = null
+  readonly camera = new ArenaCamera()
+  readonly arena: Arena
   reducedMotion = false
-  private rules: Rules | null = null
-  private spawn: Record<Seat, Point> = { p1: { x: 0, z: 4 }, p2: { x: 0, z: -4 }, p3: { x: 4, z: 0 }, p4: { x: -4, z: 0 } }
-  private readonly arena: Arena
-  private readonly cam = new ArenaCamera()
-  private readonly fx = new Effects()
-  private readonly own = new OwnBall()
-  private readonly balls = {} as Record<Seat, BallView>
-  private readonly remote = {} as Record<Seat, RemoteTrack>
-  private lastEventSeq = -1
-  private round = -1
-  private phaseEndsAt = 0
-  private lastCount = 0
+  private readonly effects = new Effects()
+  private readonly ray = new THREE.Raycaster()
+  private readonly avatar = new THREE.Group()
+  private readonly weapon = new THREE.Group()
+  private readonly targets: Target[] = []
+  private readonly npcs: Npc[] = []
+  private readonly tracers: Array<{ line: THREE.Line; life: number }> = []
+  private audioBuffers: GameAudio = {}
+  private move = { x: 0, y: 0 }
   private time = 0
-  private urgent = false
-  private hits: OutgoingHit[] = []
-  private ownFell = false
-  private bumpCooldown = 0
+  private score = 0
+  private health = 100
+  private shield = 50
+  private ammo = 24
+  private reserve = 144
+  private fireCooldown = 0
+  private reloadTimer = 0
+  private abilityCooldown = 0
+  private dashCooldown = 0
+  private message = 'Campo de tiro listo. Lee el ángulo y controla el ritmo.'
+  private npcMessage = 'Acércate a Aster para conocer la historia de Nyx.'
+  private requestedInteract = false
+  private requestedDash = false
+  private requestedAbility = false
+  private requestedReload = false
+  private requestedCamera = false
+  private inputLook = { x: 0, y: 0 }
+  private started = false
+  private fps = 60
+  private heroModel?: THREE.Object3D
+  private heroMixer?: THREE.AnimationMixer
+  private heroIdle?: THREE.AnimationAction
+  private heroWalk?: THREE.AnimationAction
 
-  constructor(private readonly renderer: Renderer, private readonly audio: Audio, private readonly hooks: GameHooks) {
+  constructor(private readonly renderer: Renderer, private readonly audio: Audio) {
     this.arena = new Arena(renderer.shadowMapSize)
-    for (const seat of SEATS) {
-      this.balls[seat] = new BallView(SEAT_COLORS[seat])
-      this.remote[seat] = new RemoteTrack()
-      this.arena.scene.add(this.balls[seat].root)
-    }
-    this.arena.scene.add(this.fx.mesh)
+    this.arena.scene.add(this.effects.mesh)
+    this.createAvatar()
+    this.createWeapon()
+    this.createTargets()
+    this.createNpcs()
   }
-
-  get camera(): THREE.PerspectiveCamera {
-    return this.cam.camera
-  }
-
-  /** World direction from the arena centre to this player's camera; screen-up points away from it. */
-  get side(): Point {
-    return this.cam.side
-  }
-
-  /** Seconds left in the current timed phase (countdown, point, ended). */
-  phaseSeconds(nowMs = performance.now()): number {
-    return Math.max(0, (this.phaseEndsAt - nowMs) / 1000)
-  }
-
-  welcome(message: Welcome): void {
-    this.mode = 'online'
-    this.role = message.role
-    this.state = null
-    this.lastEventSeq = -1
-    this.round = -1
-    this.rules = message.rules
-    this.spawn = message.spawn
-    this.cam.setSide(cameraSide(message.role, message.spawn))
-    this.arena.setRadius(message.rules.arena_radius)
-    this.own.configure(message.rules)
-    for (const seat of SEATS) {
-      this.balls[seat].setRadius(message.rules.ball_radius)
-      this.balls[seat].setOwn(seat === message.role)
-    }
-    this.placeAll()
-  }
-
-  /** A validated `room` message. */
-  room(state: RoomState, nowMs: number): void {
-    this.phaseEndsAt = nowMs + state.phase_ends_in_ms
-    const previous = this.state
-    this.state = state
-    // Each round starts from the spawns, and so does the wait after a void round.
-    if (state.round !== this.round || (state.phase === 'waiting' && previous?.phase !== 'waiting')) this.placeAll()
-    this.round = state.round
-    if (this.lastEventSeq < 0 || !previous) {
-      this.lastEventSeq = state.event.seq
-      return
-    }
-    if (state.event.seq > this.lastEventSeq) {
-      this.lastEventSeq = state.event.seq
-      this.onEvent(state)
+  get scene(): THREE.Scene { return this.arena.scene }
+  setAudioBuffers(buffers: GameAudio): void { this.audioBuffers = buffers }
+  setHeroModel(model: THREE.Object3D | undefined, clips: THREE.AnimationClip[] = []): void {
+    if (!model) return
+    this.heroModel = model.clone(true); this.heroModel.scale.setScalar(1.45); this.heroModel.position.y = 0; this.avatar.add(this.heroModel); this.avatar.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true } })
+    if (clips.length > 0) {
+      this.heroMixer = new THREE.AnimationMixer(this.heroModel)
+      const idleClip = clips.find(clip => clip.name.toLowerCase().includes('idle')) ?? clips[0]
+      const walkClip = clips.find(clip => clip.name.toLowerCase().includes('walk'))
+      this.heroIdle = this.heroMixer.clipAction(idleClip); this.heroIdle.play()
+      if (walkClip) this.heroWalk = this.heroMixer.clipAction(walkClip)
     }
   }
+  start(): void { this.started = true; this.message = 'Objetivo activo: elimina los dummies y habla con Aster.'; this.avatar.visible = true }
+  leave(): void { this.started = false; this.camera.mode = 'fps'; this.score = 0; this.avatar.position.set(0, 0, 0); this.message = 'Sesión local cerrada.' }
+  setQuality(quality: Quality): void { this.renderer.applyQuality(quality) }
+  setInput(x: number, y: number, lookX = 0, lookY = 0): void { this.move.x = x; this.move.y = y; this.inputLook = { x: lookX, y: lookY } }
+  request(action: 'interact' | 'dash' | 'ability' | 'reload' | 'camera'): void { if (action === 'interact') this.requestedInteract = true; if (action === 'dash') this.requestedDash = true; if (action === 'ability') this.requestedAbility = true; if (action === 'reload') this.requestedReload = true; if (action === 'camera') this.requestedCamera = true }
+  setFire(held: boolean): void { if (held) this.shootIfReady() }
+  getHud(): GameHud { return { health: this.health, shield: this.shield, ammo: this.ammo, reserve: this.reserve, mode: this.camera.mode, ability: this.abilityCooldown, dash: this.dashCooldown, targetCount: this.targets.filter(t => t.hp > 0).length, score: this.score, message: this.message, npc: this.npcMessage, fps: this.fps } }
 
-  /** A validated pose of a ball this client does not own. `latency` is this client's one-way latency in seconds. */
-  pose(pose: Pose, latency: number, nowMs: number): void {
-    if (!this.state || pose.round !== this.state.round || pose.seat === this.role) return
-    this.remote[pose.seat].push(pose, latency, nowMs / 1000)
-    this.own.setPeerDelay(pose.seat, latency + pose.lat / 1000)
+  step(dt: number, fireHeld = false, sprint = false): void {
+    const before = performance.now(); this.time += dt; this.fps += ((1 / Math.max(dt, 0.001)) - this.fps) * 0.08
+    this.fireCooldown = Math.max(0, this.fireCooldown - dt); this.reloadTimer = Math.max(0, this.reloadTimer - dt); this.abilityCooldown = Math.max(0, this.abilityCooldown - dt); this.dashCooldown = Math.max(0, this.dashCooldown - dt)
+    this.camera.yaw -= this.inputLook.x; this.camera.pitch = clamp(this.camera.pitch - this.inputLook.y, -1.15, 0.9); this.inputLook = { x: 0, y: 0 }
+    if (this.requestedCamera) { this.camera.toggle(); this.message = this.camera.mode === 'fps' ? 'Cámara en primera persona.' : 'Cámara táctica en tercera persona.'; this.requestedCamera = false }
+    const forward = new THREE.Vector3(Math.sin(this.camera.yaw), 0, Math.cos(this.camera.yaw)); const right = new THREE.Vector3(forward.z, 0, -forward.x)
+    const direction = right.multiplyScalar(this.move.x).add(forward.multiplyScalar(this.move.y)); if (direction.lengthSq() > 1) direction.normalize()
+    const speed = sprint ? 8.4 : 5.2; this.avatar.position.addScaledVector(direction, speed * dt); this.avatar.position.x = clamp(this.avatar.position.x, -22, 22); this.avatar.position.z = clamp(this.avatar.position.z, -22, 22)
+    if (this.requestedDash) { this.doDash(direction); this.requestedDash = false }
+    if (this.requestedAbility) { this.doAbility(); this.requestedAbility = false }
+    if (this.requestedReload) { this.reload(); this.requestedReload = false }
+    if (fireHeld) this.shootIfReady()
+    if (this.reloadTimer === 0 && this.ammo === 0 && this.reserve > 0) this.reload()
+    this.targets.forEach(t => { if (t.hp <= 0) { t.respawn -= dt; t.root.visible = false; if (t.respawn <= 0) { t.hp = t.maxHp; t.root.visible = true; this.message = 'Nuevo dummy desplegado.' } } else { t.root.rotation.y += dt * 0.6 } })
+    const moving = direction.lengthSq() > 0.02
+    if (this.heroWalk && this.heroIdle) { if (moving && !this.heroWalk.isRunning()) { this.heroIdle.fadeOut(0.18); this.heroWalk.reset().fadeIn(0.18).play() } else if (!moving && !this.heroIdle.isRunning()) { this.heroWalk.fadeOut(0.18); this.heroIdle.reset().fadeIn(0.18).play() } }
+    this.heroMixer?.update(dt); this.interactIfRequested(); this.updateTracers(dt); this.effects.update(dt); this.camera.update(this.avatar.position, dt, this.reducedMotion); this.avatar.visible = this.started && this.camera.mode === 'tps'; this.weapon.visible = this.started && this.camera.mode === 'fps'
+    if (this.heroModel) this.heroModel.rotation.y = this.camera.yaw + Math.PI
+    const elapsed = performance.now() - before; if (elapsed > 8) this.fps = Math.min(this.fps, 120)
   }
+  render(frameSeconds: number): void { this.renderer.render(this.arena.scene, this.camera.camera); for (const t of this.tracers) t.line.visible = t.life > 0; void frameSeconds }
 
-  /** The own ball to publish, or null when this client has no ball in the live round. */
-  ownPose(): OwnPose | null {
-    if (!this.ownsLiveBall()) return null
-    const { x, z, vx, vz } = this.own
-    return { round: this.state!.round, x, z, vx, vz, urgent: this.urgent }
+  private createAvatar(): void {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.92, 5, 12), new THREE.MeshStandardMaterial({ color: '#2b3444', roughness: 0.58, metalness: 0.35 })); body.position.y = 1.0; body.castShadow = true; this.avatar.add(body)
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.13, 0.32), neon('#65f6ff', 2.3)); visor.position.set(0, 1.48, 0.24); this.avatar.add(visor)
+    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.18, 0.38), new THREE.MeshStandardMaterial({ color: '#394b67', metalness: 0.55, roughness: 0.35 })); shoulder.position.y = 1.25; this.avatar.add(shoulder)
+    this.avatar.position.set(0, 0, 0); this.arena.addDynamic(this.avatar)
   }
-
-  posted(): void {
-    this.urgent = false
+  private createWeapon(): void {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.82), new THREE.MeshStandardMaterial({ color: '#1c2638', metalness: 0.65, roughness: 0.28 })); body.position.set(0.34, -0.25, -0.7); this.weapon.add(body)
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.6, 12), neon('#65f6ff', 2.7)); barrel.rotation.x = Math.PI / 2; barrel.position.set(0.34, -0.2, -1.18); this.weapon.add(barrel)
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.22), neon('#ffcc66', 2.1)); sight.position.set(0.34, -0.11, -0.83); this.weapon.add(sight)
+    this.camera.camera.add(this.weapon)
   }
-
-  /** Contacts this client resolved since the last call; send each one before the next pose. */
-  takeHits(): OutgoingHit[] {
-    const hits = this.hits
-    this.hits = []
-    return hits
+  private createTargets(): void {
+    const spots = [[-7, -4], [-2, -8], [6, -4], [10, 4], [-10, 7], [3, 10]] as [number, number][]
+    spots.forEach(([x, z], i) => { const root = new THREE.Group(); root.position.set(x, 0, z); const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.38, 1.1, 8), new THREE.MeshStandardMaterial({ color: '#263348', metalness: 0.4, roughness: 0.5 })); stand.position.y = 0.55; root.add(stand); const core = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.16, 24), neon(i % 2 ? '#ff3b9d' : '#65f6ff', 2.2)); core.rotation.x = Math.PI / 2; core.position.y = 1.65; root.add(core); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.035, 8, 32), neon('#ffcc66', 1.5)); ring.position.y = 1.65; ring.rotation.x = Math.PI / 2; root.add(ring); root.userData.target = true; this.arena.addDynamic(root); this.targets.push({ root, hp: 100, maxHp: 100, respawn: 0, label: `DUMMY-${String(i + 1).padStart(2, '0')}` }) })
   }
-
-  /** A validated `hit`: another owner resolved a contact with the own ball and sent its half. */
-  hit(message: Hit): void {
-    if (!this.ownsLiveBall() || message.round !== this.state!.round) return
-    if (!this.own.receiveHit(message.seat, message.jx, message.jz)) return
-    this.urgent = true
-    // The impulse is half of the shared one, (1 + restitution) * closing / 2.
-    const closing = (2 * Math.hypot(message.jx, message.jz)) / (1 + (this.rules?.restitution ?? 1))
-    if (closing >= BUMP_EFFECT_SPEED) this.bumpEffects(this.remote[message.seat])
+  private createNpcs(): void {
+    const data: Array<[string, [number, number], string[]]> = [
+      ['Aster Quill', [-13, 2], ['Nyx y yo crecimos entre antenas y tormentas. Ella aprendió a leer el peligro antes de que apareciera.', 'Orin no desapareció: dejó una señal en la Fractura. Si la sigues, no vayas sola.', 'La arena no premia la fuerza bruta. Premia el ángulo que nadie está mirando.']],
+      ['Mako Rell', [13, 12], ['Aster me salvó de una compuerta que se cerraba. Desde entonces, arreglo su equipo sin cobrarle.', 'Las cajas ámbar contienen material de práctica. Lo que encuentres aquí no se transfiere a partidas ranked.', 'Si ves una anomalía, repórtala. Una alerta falsa se revisa; un exploit se corrige.']],
+    ]
+    data.forEach(([name, [x, z], dialogue]) => { const root = new THREE.Group(); root.position.set(x, 0, z); const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.85, 4, 10), new THREE.MeshStandardMaterial({ color: '#554a6e', roughness: 0.7 })); body.position.y = 0.9; root.add(body); const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 10), neon('#ffcc66', 1.1)); head.position.y = 1.55; root.add(head); const halo = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.025, 6, 32), neon('#ffcc66', 2)); halo.rotation.x = Math.PI / 2; halo.position.y = 2.15; root.add(halo); root.userData.npc = name; this.arena.addDynamic(root); this.npcs.push({ root, name, dialogue, index: 0 }) })
   }
-
-  /** Back to the title orbit; the connection is already closed by the caller. */
-  leave(): void {
-    this.mode = 'attract'
-    this.role = 'spectator'
-    this.state = null
-    for (const seat of SEATS) this.balls[seat].setOwn(false)
-    this.placeAll()
-    this.fx.clear()
+  private shootIfReady(): void {
+    if (!this.started || this.reloadTimer > 0 || this.fireCooldown > 0) return
+    if (this.ammo <= 0) { this.reload(); return }
+    this.ammo -= 1; this.fireCooldown = 0.12; this.camera.addRecoil(); this.camera.addShake(0.14); this.playBuffer(this.audioBuffers.shot)
+    this.ray.setFromCamera(new THREE.Vector2(0, 0), this.camera.camera); const hits = this.ray.intersectObjects(this.targets.flatMap(t => [t.root]), true); const hit = hits.find(h => h.object.parent?.userData.target || h.object.userData.target)
+    const end = hit?.point ?? this.ray.ray.origin.clone().add(this.ray.ray.direction.clone().multiplyScalar(45)); const tracerGeo = new THREE.BufferGeometry().setFromPoints([this.camera.camera.position.clone(), end]); const tracer = new THREE.Line(tracerGeo, new THREE.LineBasicMaterial({ color: '#65f6ff', transparent: true, opacity: 0.8 })); this.arena.scene.add(tracer); this.tracers.push({ line: tracer, life: 0.075 })
+    if (hit) { let root = hit.object; while (root.parent && !root.userData.target) root = root.parent; const target = this.targets.find(t => t.root === root); if (target) { target.hp -= 25; this.effects.burst(hit.point, target.hp <= 0 ? '#ffcc66' : '#65f6ff', target.hp <= 0 ? 28 : 9, 4); if (target.hp <= 0) { target.respawn = 4; this.score += 100; this.message = `${target.label} neutralizado · +100 XP`; this.playBuffer(this.audioBuffers.reward) } else this.message = `${target.label} impactado · ${Math.max(0, target.hp)}%` } }
   }
-
-  /** The world direction the player is pushing (length at most 1). */
-  setInput(x: number, z: number): void {
-    this.own.setInput(x, z)
-  }
-
-  setQuality(quality: Quality): void {
-    this.renderer.applyQuality(quality)
-    const size = this.renderer.shadowMapSize
-    const shadow = this.arena.sun.shadow
-    shadow.map?.dispose()
-    shadow.map = null
-    shadow.mapSize.set(size, size)
-    // Shadow support is compiled into shaders: recompile after toggling shadows at runtime.
-    this.arena.scene.traverse(obj => {
-      const material = (obj as THREE.Mesh).material
-      for (const m of Array.isArray(material) ? material : material ? [material] : []) m.needsUpdate = true
-    })
-  }
-
-  step(dt: number): void {
-    this.bumpCooldown = Math.max(0, this.bumpCooldown - dt)
-    if (this.mode !== 'online' || !this.ownsLiveBall()) return
-    const others = SEATS.filter(seat => seat !== this.role && this.inPlay(seat)).map(seat => ({ seat, ball: this.remote[seat] }))
-    const wasOut = this.own.out
-    const round = this.state!.round
-    for (const contact of this.own.step(dt, others)) {
-      this.urgent = true
-      this.hits.push({ to: contact.seat, round, jx: contact.jx, jz: contact.jz })
-      if (contact.closing >= BUMP_EFFECT_SPEED) this.bumpEffects(this.remote[contact.seat])
-    }
-    if (this.own.out && !wasOut) {
-      // Optimistic: fall at once; the server's ring-out event confirms it and scores the round.
-      this.urgent = true
-      this.ownFell = true
-      this.audio.play('fall')
-      this.fx.burst(new THREE.Vector3(this.own.x, 0.5, this.own.z), SEAT_COLORS[this.role as Seat], 30, 7)
-    }
-  }
-
-  render(frameSeconds: number): void {
-    this.time += frameSeconds
-    const state = this.state
-    if (this.mode === 'attract' || !state) {
-      this.cam.orbit(frameSeconds)
-      for (const seat of SEATS) {
-        this.balls[seat].root.visible = seat === 'p1' || seat === 'p2'
-        this.balls[seat].update(this.spawn[seat].x, this.spawn[seat].z, 0, 0, false, frameSeconds, this.time)
-      }
-    } else {
-      const now = performance.now() / 1000
-      const radius = this.rules?.arena_radius ?? 10
-      let own: Point | null = null
-      for (const seat of SEATS) {
-        const seatState = state.seats[seat]
-        const shown = state.phase === 'waiting' || state.phase === 'countdown' ? seatState.connected : seatState.playing
-        this.balls[seat].root.visible = shown
-        if (!shown) continue
-        const mine = seat === this.role
-        if (!mine) this.remote[seat].update(now, frameSeconds)
-        const ball: Motion = mine ? this.own : this.remote[seat]
-        // Fall as soon as the owner's report crosses the edge; the server confirms with `out`.
-        const out = seatState.out || (mine ? this.own.out : this.remote[seat].reportedOutside(radius))
-        this.balls[seat].update(ball.x, ball.z, ball.vx, ball.vz, out, frameSeconds, this.time)
-        if (mine && seatState.playing) own = ball
-      }
-      this.cam.update(own, frameSeconds, this.reducedMotion)
-      this.countdownBeep(state)
-    }
-    this.fx.update(frameSeconds)
-    this.renderer.render(this.arena.scene, this.cam.camera)
-  }
-
-  private ownsLiveBall(): boolean {
-    const state = this.state
-    if (!state || this.role === 'spectator' || state.phase !== 'live') return false
-    const seat = state.seats[this.role]
-    return seat.playing && !seat.out
-  }
-
-  private inPlay(seat: Seat): boolean {
-    const value = this.state?.seats[seat]
-    return !!value && value.playing && !value.out
-  }
-
-  private placeAll(): void {
-    for (const seat of SEATS) this.remote[seat].place(this.spawn[seat].x, this.spawn[seat].z)
-    if (this.role !== 'spectator') this.own.place(this.spawn[this.role].x, this.spawn[this.role].z)
-    this.urgent = false
-    this.hits = []
-    this.ownFell = false
-  }
-
-  private bumpEffects(other: Motion): void {
-    if (this.bumpCooldown > 0) return
-    this.bumpCooldown = BUMP_EFFECT_COOLDOWN
-    this.audio.play('bump')
-    this.fx.burst(new THREE.Vector3((this.own.x + other.x) / 2, 0.8, (this.own.z + other.z) / 2), '#ffffff', 16, 5)
-    this.cam.addShake(CONFIG.look.bumpShake)
-  }
-
-  private countdownBeep(state: RoomState): void {
-    const count = state.phase === 'countdown' ? Math.ceil(this.phaseSeconds()) : 0
-    if (count > 0 && count !== this.lastCount) this.audio.play('count')
-    this.lastCount = count
-  }
-
-  private onEvent(state: RoomState): void {
-    const { kind, seat } = state.event
-    if (kind === 'round') {
-      this.audio.play('go')
-    } else if (kind === 'ringout' && seat && seat !== this.role) {
-      const ball = this.remote[seat]
-      this.audio.play('fall')
-      this.fx.burst(new THREE.Vector3(ball.x, 0.5, ball.z), SEAT_COLORS[seat], 30, 7)
-    } else if (kind === 'ringout' && seat === this.role && !this.ownFell) {
-      // The server saw the own ball cross before this client did (for example after a reconnect).
-      this.audio.play('fall')
-    } else if (kind === 'match') {
-      this.audio.play(this.role === 'spectator' || state.winner === this.role ? 'win' : 'lose')
-      if (state.winner) this.fx.burst(new THREE.Vector3(0, 1, 0), SEAT_COLORS[state.winner], 60, 10)
-    }
-    this.hooks.event(kind, state)
-  }
+  private reload(): void { if (this.reloadTimer > 0 || this.ammo >= 24 || this.reserve <= 0) return; this.reloadTimer = 1.05; window.setTimeout(() => { const need = 24 - this.ammo; const take = Math.min(need, this.reserve); this.ammo += take; this.reserve -= take; this.message = 'Cargador listo.' }, 1060) }
+  private doDash(direction: THREE.Vector3): void { if (!this.started || this.dashCooldown > 0) return; const dir = direction.lengthSq() > 0.01 ? direction.normalize() : new THREE.Vector3(Math.sin(this.camera.yaw), 0, Math.cos(this.camera.yaw)); this.avatar.position.addScaledVector(dir, 4.5); this.avatar.position.x = clamp(this.avatar.position.x, -22, 22); this.avatar.position.z = clamp(this.avatar.position.z, -22, 22); this.dashCooldown = 5; this.camera.addShake(0.18); this.effects.ring(this.avatar.position.clone().setY(0.7), '#65f6ff'); this.playBuffer(this.audioBuffers.dash); this.message = 'CORTE DE FASE ejecutado.' }
+  private doAbility(): void { if (!this.started || this.abilityCooldown > 0) return; this.abilityCooldown = 8; const pos = this.avatar.position.clone(); this.effects.ring(pos.setY(1.3), '#ff3b9d'); this.targets.forEach(t => { if (t.hp > 0 && t.root.position.distanceTo(this.avatar.position) < 9) t.root.children.forEach(o => { if (o instanceof THREE.Mesh) (o.material as THREE.MeshStandardMaterial).emissiveIntensity = 4 }) }); this.message = 'ECO PRISMA: objetivos cercanos marcados durante 3 s.'; this.playBuffer(this.audioBuffers.dash) }
+  private interactIfRequested(): void { if (!this.requestedInteract) return; this.requestedInteract = false; const npc = this.npcs.find(n => n.root.position.distanceTo(this.avatar.position) < 3.3); if (npc) { this.npcMessage = `${npc.name}: ${npc.dialogue[npc.index % npc.dialogue.length]}`; npc.index += 1; this.message = `Interacción registrada con ${npc.name}.` } else { const chest = new THREE.Vector3(0, 0, 0); if (this.avatar.position.distanceTo(chest) < 4) { const rarity = this.rollRarity(); this.npcMessage = `Cofre de entrenamiento abierto: recompensa ${rarity}. Las recompensas reales se validan en servidor.`; this.message = 'Recompensa de práctica añadida al inventario local.'; this.playBuffer(this.audioBuffers.reward) } else this.message = 'No hay una interacción válida en alcance.' } }
+  private rollRarity(): string { const weights = [['Común', 70], ['Poco común', 40], ['Rara', 30], ['Legendaria', 10], ['Mística', 5], ['Especial', 1]] as [string, number][]; const total = weights.reduce((s, [, w]) => s + w, 0); let value = Math.random() * total; for (const [name, weight] of weights) { value -= weight; if (value <= 0) return name } return 'Común' }
+  private updateTracers(dt: number): void { for (let i = this.tracers.length - 1; i >= 0; i -= 1) { const t = this.tracers[i]; t.life -= dt; if (t.life <= 0) { t.line.geometry.dispose(); (t.line.material as THREE.Material).dispose(); this.arena.scene.remove(t.line); this.tracers.splice(i, 1) } } }
+  private playBuffer(buffer?: AudioBuffer): void { if (buffer) this.audio.playBuffer(buffer, 'sfx') }
 }

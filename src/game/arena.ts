@@ -1,110 +1,57 @@
 import * as THREE from 'three'
 
-/** Concentric rings and spawn marks drawn once into a canvas texture. */
-function floorTexture(): THREE.CanvasTexture {
-  const size = 1024
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const g = canvas.getContext('2d')!
-  const c = size / 2
-  const fill = g.createRadialGradient(c, c, 0, c, c, c)
-  fill.addColorStop(0, '#3b3570')
-  fill.addColorStop(0.8, '#2a2556')
-  fill.addColorStop(1, '#1d1942')
-  g.fillStyle = fill
-  g.fillRect(0, 0, size, size)
-  g.strokeStyle = 'rgba(255, 255, 255, 0.08)'
-  g.lineWidth = 6
-  for (let r = 0.2; r < 1; r += 0.2) {
-    g.beginPath()
-    g.arc(c, c, c * r, 0, Math.PI * 2)
-    g.stroke()
-  }
-  // Danger band near the edge.
-  g.strokeStyle = 'rgba(255, 92, 120, 0.35)'
-  g.lineWidth = 22
-  g.beginPath()
-  g.arc(c, c, c * 0.93, 0, Math.PI * 2)
-  g.stroke()
-  g.fillStyle = 'rgba(255, 211, 92, 0.55)'
-  g.beginPath()
-  g.arc(c, c, 14, 0, Math.PI * 2)
-  g.fill()
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 4
-  return texture
+const C = { floor: '#111a2c', panel: '#1b2942', cyan: '#65f6ff', magenta: '#ff3b9d', amber: '#ffcc66', steel: '#34445d' }
+function mat(color: string, emissive = '#000000', intensity = 0): THREE.MeshStandardMaterial { return new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.32, emissive, emissiveIntensity: intensity }) }
+function box(parent: THREE.Object3D, size: [number, number, number], pos: [number, number, number], material: THREE.Material, bevel = 0): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material); mesh.position.set(...pos); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh)
+  if (bevel) { const edge = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: C.cyan, transparent: true, opacity: 0.26 })); mesh.add(edge) }
+  return mesh
+}
+function neonLine(parent: THREE.Object3D, pos: [number, number, number], rot: [number, number, number], color: string): void {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.8, 0.08), mat(color, color, 2.2)); mesh.position.set(...pos); mesh.rotation.set(...rot); parent.add(mesh)
 }
 
-/**
- * The play space: a floating disc over a starry void. The disc radius always comes from the
- * server's `welcome.rules.arena_radius`; call `setRadius()` when rules arrive.
- */
 export class Arena {
   readonly scene = new THREE.Scene()
   readonly sun: THREE.DirectionalLight
-  private readonly disc: THREE.Group
-  private radius = 0
-
+  readonly world = new THREE.Group()
+  private readonly dynamic = new THREE.Group()
   constructor(shadowMapSize: number) {
-    this.scene.background = new THREE.Color('#0d0b24')
-    this.scene.fog = new THREE.Fog('#0d0b24', 40, 110)
-    this.scene.add(new THREE.HemisphereLight('#b9c8ff', '#2a1d3f', 1.1))
-    this.sun = new THREE.DirectionalLight('#fff1d6', 2.2)
-    this.sun.position.set(8, 20, 6)
-    this.sun.castShadow = true
-    this.sun.shadow.mapSize.set(shadowMapSize, shadowMapSize)
-    const cam = this.sun.shadow.camera
-    cam.left = cam.bottom = -14
-    cam.right = cam.top = 14
-    cam.near = 1
-    cam.far = 60
-    this.scene.add(this.sun, this.sun.target)
-    this.disc = new THREE.Group()
-    this.scene.add(this.disc)
-    this.scene.add(this.stars())
-    this.setRadius(10)
+    this.scene.background = new THREE.Color('#050916')
+    this.scene.fog = new THREE.Fog('#050916', 35, 120)
+    this.scene.add(new THREE.HemisphereLight('#9ab8ff', '#080a15', 1.55))
+    this.sun = new THREE.DirectionalLight('#d9f5ff', 2.4); this.sun.position.set(-18, 30, 12); this.sun.castShadow = true; this.sun.shadow.mapSize.set(shadowMapSize, shadowMapSize); this.scene.add(this.sun, this.sun.target)
+    this.scene.add(this.world); this.world.add(this.dynamic)
+    this.build()
   }
-
-  setRadius(radius: number): void {
-    if (radius === this.radius) return
-    this.radius = radius
-    for (const child of [...this.disc.children]) {
-      const mesh = child as THREE.Mesh
-      mesh.geometry.dispose()
-      for (const material of ([] as THREE.Material[]).concat(mesh.material)) {
-        (material as THREE.MeshStandardMaterial).map?.dispose()
-        material.dispose()
-      }
-      this.disc.remove(mesh)
+  setRadius(_radius: number): void { /* compatibilidad con el starter */ }
+  addDynamic(object: THREE.Object3D): void { this.dynamic.add(object) }
+  private build(): void {
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), mat(C.floor)); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.world.add(floor)
+    const grid = new THREE.GridHelper(64, 32, '#243a59', '#15243a'); grid.position.y = 0.015; (grid.material as THREE.Material).transparent = true; (grid.material as THREE.Material).opacity = 0.54; this.world.add(grid)
+    const border = new THREE.Mesh(new THREE.RingGeometry(23.7, 24, 96), new THREE.MeshBasicMaterial({ color: C.magenta, transparent: true, opacity: 0.75, side: THREE.DoubleSide })); border.rotation.x = -Math.PI / 2; border.position.y = 0.035; this.world.add(border)
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(10, 0.045, 6, 96), mat(C.cyan, C.cyan, 2.5)); ring.rotation.x = Math.PI / 2; ring.position.y = 0.04; this.world.add(ring)
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.14, 64), mat('#14233b', C.cyan, 0.8)); core.position.y = 0.07; this.world.add(core)
+    // Cover lanes and vertical sightline blockers.
+    const cover = mat(C.panel)
+    for (const [x, z, w, d, h] of [[-12, -5, 5, 1.8, 1.7], [12, 5, 5, 1.8, 1.7], [-3, 10, 1.8, 5, 1.5], [3, -10, 1.8, 5, 1.5], [-15, 12, 2.2, 2.2, 3.4], [15, -12, 2.2, 2.2, 3.4]] as [number, number, number, number, number][]) box(this.world, [w, h, d], [x, h / 2, z], cover, 1)
+    for (const [x, z] of [[-18, -18], [18, -18], [-18, 18], [18, 18]] as [number, number][]) {
+      box(this.world, [0.8, 7, 0.8], [x, 3.5, z], mat(C.steel), 1); neonLine(this.world, [x, 3.2, z], [0, 0, 0], (x * z > 0) ? C.cyan : C.magenta)
     }
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.6, 96),
-      [new THREE.MeshStandardMaterial({ color: '#4a3f7a', roughness: 0.8 }),
-        new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.65, metalness: 0.05 }),
-        new THREE.MeshStandardMaterial({ color: '#2a2450' })])
-    top.position.y = -0.3
-    top.receiveShadow = true
-    const rock = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.96, radius * 0.18, radius * 0.6, 48, 1),
-      new THREE.MeshStandardMaterial({ color: '#2b2148', roughness: 1, flatShading: true }))
-    rock.position.y = -0.6 - radius * 0.3
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.09, 8, 128),
-      new THREE.MeshStandardMaterial({ color: '#ff5c78', emissive: '#ff5c78', emissiveIntensity: 1.6 }))
-    rim.rotation.x = Math.PI / 2
-    rim.position.y = 0.02
-    this.disc.add(top, rock, rim)
+    for (const [x, z, color] of [[-20, 0, C.cyan], [20, 0, C.magenta], [0, -20, C.amber], [0, 20, C.cyan]] as [number, number, string][]) {
+      const sign = box(this.world, [3.8, 1.6, 0.12], [x, 5.5, z], mat('#0b1222', color, 1.8), 1); sign.rotation.y = x === 0 ? 0 : Math.PI / 2
+    }
+    const beacon = new THREE.PointLight(C.cyan, 18, 16, 2); beacon.position.set(0, 4.5, 0); this.world.add(beacon)
+    const beacon2 = new THREE.PointLight(C.magenta, 11, 18, 2); beacon2.position.set(13, 3, -12); this.world.add(beacon2)
+    this.addSkyline()
   }
-
-  private stars(): THREE.Points {
-    const count = 900
-    const positions = new Float32Array(count * 3)
-    for (let i = 0; i < count; i += 1) {
-      const dir = new THREE.Vector3().randomDirection()
-      dir.y = dir.y * 0.8 - 0.2
-      dir.normalize().multiplyScalar(80 + Math.random() * 40)
-      positions.set([dir.x, dir.y, dir.z], i * 3)
+  private addSkyline(): void {
+    const skyline = new THREE.Group()
+    for (let i = 0; i < 30; i += 1) {
+      const a = (i / 30) * Math.PI * 2; const r = 34 + (i % 5) * 2; const h = 4 + (i % 6) * 1.8
+      const building = box(skyline, [2 + (i % 3), h, 2 + ((i + 1) % 3)], [Math.cos(a) * r, h / 2 - 1, Math.sin(a) * r], mat(i % 2 ? '#0c1322' : '#111c2e'))
+      if (i % 2 === 0) { const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, h * 0.72, 0.06), mat(C.cyan, C.cyan, 1.5)); strip.position.set(0.55, 0, 1.01); building.add(strip) }
     }
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    return new THREE.Points(geometry, new THREE.PointsMaterial({ color: '#cfd8ff', size: 0.35, fog: false }))
+    this.world.add(skyline)
   }
 }
