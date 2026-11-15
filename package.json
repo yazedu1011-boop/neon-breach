@@ -18,7 +18,7 @@
     "build:native": "pnpm build && node scripts/setup-native-packaging.mjs --check",
     "desktop:dev": "pnpm exec tauri dev",
     "desktop:build": "pnpm exec tauri build",
-    "android:sync": "pnpm build && pnpm exec cap sync android",
+    "android:sync": "pnpm manus:build-source && pnpm exec cap sync android",
     "android:open": "pnpm exec cap open android",
     "android:build:debug": "pnpm android:sync && node scripts/native/android-build.mjs assembleDebug",
     "android:build:release": "pnpm android:sync && node scripts/native/android-build.mjs bundleRelease"
