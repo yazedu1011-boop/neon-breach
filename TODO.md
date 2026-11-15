@@ -66,3 +66,14 @@
 - [x] El repositorio remoto es `yazedu1011-boop/neon-breach`.
 - [ ] Reemplazar el actual slice de campo de tiro por la primera partida Android battle royale jugable.
 - [ ] Guardar checkpoint del proyecto después de validar el nuevo vertical slice.
+
+## Battle royale móvil (iteración actual)
+- [x] Mapa Fracture Island con seis zonas, edificios, cofres y colisiones.
+- [x] Personaje 3D animado (GLB) con respaldo humanoide articulado.
+- [x] Cámara TPS/FPS sin joystick de cámara: arrastre libre del canvas.
+- [x] Cuadrícula de botones redondos separados, cuatro slots de arma.
+- [x] Velocidad reducida al apuntar (28%) y al disparar sin mira (50%).
+- [x] Bots, tormenta, daño/escudo, victoria/derrota y reinicio.
+- [ ] Cofres con animación de apertura completa y loot visual.
+- [ ] IA de bots con patrulla, cobertura y uso de habilidades.
+- [ ] Multijugador online autoritativo para battle royale.

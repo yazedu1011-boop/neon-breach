@@ -69,6 +69,14 @@ jobs:
           pnpm native:setup -- --install
           pnpm native:setup -- --android
           test -n "$ANDROID_HOME" || test -n "$ANDROID_SDK_ROOT"
+      - name: Download native game assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p public/assets/models public/assets/audio
+          gh release download native-assets --pattern "nyx-vale-animated.glb" --dir public/assets/models || echo "Modelo no disponible: se usara el respaldo articulado"
+          gh release download native-assets --pattern "*.mp3" --dir public/assets/audio || true
+          ls -la public/assets/models public/assets/audio
       - name: Build debug APK
         run: pnpm android:build:debug
       - name: Upload APK

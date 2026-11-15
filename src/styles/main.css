@@ -39,3 +39,123 @@ body.has-touch #ui .touch{display:block}
 #ui[data-hud-profile=competitive] .touch-actions{right:2vw;bottom:5vh}
 #ui[data-hud-profile=lefty] .touch-actions{left:3vw;right:auto}
 #ui[data-hud-profile=custom] .touch-actions button{min-width:calc(58px * var(--hud-scale));min-height:calc(48px * var(--hud-scale))}
+
+/* Battle-royale mobile HUD: fixed move stick, round separated buttons, no look stick */
+.touch{position:absolute;inset:0;display:none;pointer-events:none;opacity:var(--hud-opacity);z-index:20}
+body.has-touch .screen-hud.is-active .touch{display:block}
+.touch-stick{position:absolute;left:5vw;bottom:6vh;width:calc(132px * var(--hud-scale));height:calc(132px * var(--hud-scale));border:2px solid rgba(101,246,255,.5);border-radius:50%;background:radial-gradient(circle,rgba(101,246,255,.10),rgba(5,9,22,.42));pointer-events:auto;touch-action:none;display:grid;place-items:center}
+.touch-stick i{position:absolute;left:50%;top:50%;width:calc(54px * var(--hud-scale));height:calc(54px * var(--hud-scale));margin:calc(-27px * var(--hud-scale));border-radius:50%;background:rgba(101,246,255,.55);border:2px solid rgba(232,243,255,.55);box-shadow:0 0 18px rgba(101,246,255,.3)}
+.touch-stick span{position:absolute;bottom:12px;color:rgba(232,243,255,.5);font-size:8px;letter-spacing:.16em;font-weight:800}
+.touch-stick.is-active{border-color:var(--cyan);background:radial-gradient(circle,rgba(101,246,255,.18),rgba(5,9,22,.5))}
+.touch-actions{position:absolute;inset:0;pointer-events:none}
+.touch-actions button{position:absolute;border-radius:50%;border:2px solid rgba(232,243,255,.55);background:rgba(8,16,30,.72);color:#eaf6ff;font-size:9px;font-weight:800;letter-spacing:.04em;pointer-events:auto;touch-action:none;display:grid;place-items:center;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .08s}
+.touch-actions button:active{transform:scale(.92);background:rgba(101,246,255,.32)}
+.touch-actions .btn-fire{right:4vw;bottom:5vh;width:calc(96px * var(--hud-scale));height:calc(96px * var(--hud-scale));border-color:rgba(255,59,157,.85);background:rgba(96,17,58,.7);font-size:12px}
+.touch-actions .btn-aim{right:18vw;bottom:6vh;width:calc(68px * var(--hud-scale));height:calc(68px * var(--hud-scale));border-color:rgba(101,246,255,.85)}
+.touch-actions .btn-jump{right:5vw;bottom:26vh;width:calc(64px * var(--hud-scale));height:calc(64px * var(--hud-scale))}
+.touch-actions .btn-crouch{right:13.5vw;bottom:20vh;width:calc(58px * var(--hud-scale));height:calc(58px * var(--hud-scale))}
+.touch-actions .btn-reload{right:25vw;bottom:5.5vh;width:calc(58px * var(--hud-scale));height:calc(58px * var(--hud-scale))}
+.touch-actions .btn-ability{right:12vw;bottom:35vh;width:calc(58px * var(--hud-scale));height:calc(58px * var(--hud-scale));border-color:rgba(255,204,102,.8)}
+.touch-actions .btn-interact{right:24vw;bottom:17vh;width:calc(58px * var(--hud-scale));height:calc(58px * var(--hud-scale))}
+.touch-actions .btn-camera{right:33vw;bottom:7vh;width:calc(54px * var(--hud-scale));height:calc(54px * var(--hud-scale))}
+.touch-actions .btn-cycle{right:4.5vw;bottom:45vh;width:calc(62px * var(--hud-scale));height:calc(62px * var(--hud-scale))}
+.loadout-bar{position:absolute;right:4vw;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:10}
+.loadout-slot{width:calc(86px * var(--hud-scale));height:calc(40px * var(--hud-scale));padding:4px 8px;border:1px solid #28425d;border-radius:8px;background:rgba(6,15,29,.78);color:var(--muted);text-align:left;pointer-events:auto}
+.loadout-slot.is-active{border-color:var(--cyan);color:var(--text);box-shadow:0 0 12px rgba(101,246,255,.25)}
+.chest-prompt{position:absolute;left:50%;bottom:22vh;transform:translateX(-50%) translateY(8px);display:none;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--amber);border-radius:30px;background:rgba(6,15,29,.86);pointer-events:auto}
+.chest-prompt.is-visible{display:flex}
+.chest-prompt b{color:var(--amber);font-size:11px;letter-spacing:.06em}
+.chest-prompt button{border:0;border-radius:20px;padding:9px 18px;background:var(--amber);color:#20160a;font-weight:800;font-size:11px}
+.match-overlay{position:absolute;inset:0;display:none;place-content:center;justify-items:center;text-align:center;background:rgba(3,7,15,.78);backdrop-filter:blur(4px);pointer-events:auto;z-index:30}
+.match-overlay.is-visible{display:grid}
+.match-overlay small{color:var(--muted);letter-spacing:.2em;font-size:10px}
+.match-overlay h2{margin:10px 0;font-size:clamp(26px,4vw,48px);color:var(--cyan);letter-spacing:.06em}
+.match-overlay p{color:var(--muted);margin:0 0 18px}
+.match-actions{display:flex;gap:12px}
+.match-actions button{border:1px solid var(--cyan);border-radius:26px;padding:12px 24px;background:rgba(101,246,255,.12);color:var(--cyan);font-weight:800;letter-spacing:.08em}
+.reticle.is-ads{width:22px;height:22px;border-color:rgba(255,59,157,.9)}
+@media (orientation:portrait){.screen-hud .orientation-warning{display:grid;position:absolute;inset:0;z-index:80;place-content:center;text-align:center;background:rgba(3,7,15,.96);color:var(--cyan);font-size:20px;font-weight:800;letter-spacing:.12em;pointer-events:auto}.screen-hud .orientation-warning small{margin-top:12px;color:var(--muted);font-size:10px}}
+@media (max-height:520px) and (orientation:landscape){.touch-actions .btn-fire{width:calc(84px * var(--hud-scale));height:calc(84px * var(--hud-scale))}.touch-actions .btn-aim{width:calc(60px * var(--hud-scale));height:calc(60px * var(--hud-scale))}.touch-actions .btn-jump{width:calc(56px * var(--hud-scale));height:calc(56px * var(--hud-scale))}.loadout-slot{width:calc(76px * var(--hud-scale));height:calc(34px * var(--hud-scale))}}
+#ui.left-handed .touch-stick{left:auto;right:5vw}
+#ui.left-handed .touch-actions .btn-fire{right:auto;left:4vw}
+#ui.left-handed .touch-actions .btn-aim{right:auto;left:18vw}
+#ui.left-handed .touch-actions .btn-jump{right:auto;left:5vw}
+#ui.left-handed .touch-actions .btn-crouch{right:auto;left:13.5vw}
+#ui.left-handed .touch-actions .btn-reload{right:auto;left:25vw}
+#ui.left-handed .touch-actions .btn-ability{right:auto;left:12vw}
+#ui.left-handed .touch-actions .btn-interact{right:auto;left:24vw}
+#ui.left-handed .touch-actions .btn-camera{right:auto;left:33vw}
+#ui.left-handed .touch-actions .btn-cycle{right:auto;left:4.5vw}
+#ui.left-handed .loadout-bar{right:auto;left:4vw}
+
+/* Layout fixes: keep the mobile cluster clear of cards and center reticle */
+.loadout-bar{left:auto;right:3vw;top:auto;bottom:52vh;transform:none}
+.hud-right{right:2.5vw;top:11vh;gap:6px}
+.hud-right .ammo b{font-size:34px}
+.hud-right .score-card b{font-size:18px}
+.hud-right .storm-card b{font-size:14px}
+.hud-bottom{left:50%;right:auto;bottom:2vh;transform:translateX(-50%);width:min(44vw,300px);display:block}
+.hud-bottom .ability-card{display:none}
+.npc-toast{left:2vw;top:24vh;bottom:auto;transform:none;max-width:min(300px,34vw);text-align:left;padding:7px 12px}
+.npc-toast b{font-size:10px}
+@media (orientation:portrait){.loadout-bar,.hud-right,.hud-bottom,.npc-toast{display:none}}
+@media (max-width:760px){.touch-actions{position:absolute;right:0;bottom:0;display:block;grid-template-columns:none}.touch-actions button{width:calc(58px * var(--hud-scale));height:calc(58px * var(--hud-scale))}.touch-stick{left:5vw;bottom:6vh;pointer-events:auto}}
+
+/* Final mobile layout: slots centered above vitals, ammo top-right, comms under top bar */
+.loadout-bar{left:50%;right:auto;bottom:9.5vh;transform:translateX(-50%);flex-direction:row;gap:6px}
+.loadout-slot{width:calc(74px * var(--hud-scale));height:calc(34px * var(--hud-scale));text-align:center;padding:2px}
+.hud-right{right:2vw;top:64px;flex-direction:column;gap:6px;align-items:flex-end}
+.hud-right .score-card{padding:6px 10px;min-width:104px}
+.hud-right .storm-card{padding:5px 10px;min-width:104px}
+.hud-right .ammo{padding:6px 10px;min-width:120px;text-align:right}
+.hud-right .ammo b{font-size:30px}
+.hud-right .ammo span{font-size:14px}
+.hud-right .ammo small{font-size:9px}
+.hud-bottom{bottom:2vh;width:min(46vw,340px)}
+.npc-toast{left:50%;top:8.5vh;transform:translateX(-50%);max-width:52vw;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.objective-card b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.touch-actions .btn-ability{right:14vw;bottom:33vh}
+.touch-actions .btn-jump{right:5vw;bottom:27vh}
+.touch-actions .btn-crouch{right:15vw;bottom:20vh}
+.touch-actions .btn-interact{right:33vw;bottom:14vh}
+.touch-actions .btn-camera{right:34vw;bottom:5.5vh}
+.touch-actions .btn-cycle{right:4.5vw;bottom:46vh}
+.touch-actions .btn-reload{right:25vw;bottom:5.5vh}
+@media (max-height:430px){.hud-right{top:54px}.loadout-bar{bottom:10vh}.hud-bottom{bottom:1vh}.npc-toast{top:7vh}}
+
+/* Spacing pass: no overlaps between slots, vitals and action buttons */
+.hud-left{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.hud-left > div{position:static}
+.objective-card span{white-space:nowrap}
+.loadout-bar{bottom:12vh}
+.hud-bottom{bottom:1.2vh;width:min(40vw,300px)}
+.vitals{width:100%}
+.vitals b{font-size:8px}
+.btn-cycle{display:none}
+.touch-actions .btn-camera{right:4.5vw;bottom:38vh}
+.touch-actions .btn-interact{right:33vw;bottom:14vh}
+@media (max-height:430px){.loadout-bar{bottom:13vh}.loadout-slot{width:calc(64px * var(--hud-scale));height:calc(30px * var(--hud-scale))}.hud-bottom{bottom:.6vh;width:min(34vw,260px)}.btn-camera{right:4.5vw;bottom:40vh}}
+
+/* Round button grid: three separated rows, big fire button, no overlaps */
+.touch-actions{position:absolute;right:2.5vw;bottom:3vh;top:auto;left:auto;display:grid;grid-template-columns:repeat(3,calc(62px * var(--hud-scale)));grid-auto-rows:calc(62px * var(--hud-scale));gap:calc(9px * var(--hud-scale));justify-items:center;align-items:center;pointer-events:none}
+.touch-actions button{position:static;width:100%;height:100%}
+.touch-actions .btn-fire{width:calc(82px * var(--hud-scale));height:calc(82px * var(--hud-scale));margin:calc(-10px * var(--hud-scale));order:9}
+.touch-actions .btn-aim{order:1}.touch-actions .btn-jump{order:2}.touch-actions .btn-crouch{order:3}
+.touch-actions .btn-ability{order:4}.touch-actions .btn-interact{order:5}.touch-actions .btn-camera{order:6}.touch-actions .btn-reload{order:7}
+.loadout-bar{left:50%;right:auto;top:13.5vh;bottom:auto;transform:translateX(-50%);flex-direction:row;gap:5px}
+.loadout-slot{width:calc(62px * var(--hud-scale));height:calc(28px * var(--hud-scale));padding:1px;text-align:center}
+.loadout-slot b{font-size:8px}
+.hud-right{right:2vw;top:60px;gap:5px}
+.hud-right .score-card,.hud-right .storm-card{padding:4px 8px;min-width:92px}
+.hud-right .ammo{padding:5px 9px;min-width:104px}
+.hud-bottom{left:50%;right:auto;bottom:1.2vh;transform:translateX(-50%);width:min(40vw,300px)}
+@media (max-height:520px) and (orientation:landscape){.hud-right .score-card,.hud-right .storm-card{display:none}}
+
+/* Final spacing: slots above vitals, compact comms, single weapon-cycle entry */
+.touch-actions .btn-cycle{display:none!important}
+.objective-card{max-width:36vw}
+.npc-toast{top:6.5vh;max-width:44vw;padding:5px 12px;line-height:1.3}
+.npc-toast span{display:none}
+.loadout-bar{top:auto;bottom:18vh;left:50%;transform:translateX(-50%)}
+.hud-bottom{bottom:.8vh;width:min(38vw,300px)}
+@media (max-height:430px){.loadout-bar{bottom:19vh}.npc-toast{top:6vh;max-width:40vw}.hud-bottom{bottom:.4vh;width:min(34vw,260px)}}

@@ -11,14 +11,17 @@ export function stickToWorld(side: Point, x: number, y: number): Point { const f
 
 export type CameraMode = 'fps' | 'tps'
 
+/** Cámara táctica: tercera persona por defecto, primera persona opcional y zoom al apuntar. */
 export class ArenaCamera {
-  readonly camera = new THREE.PerspectiveCamera(76, 1, 0.05, 300)
-  mode: CameraMode = 'fps'
+  readonly camera = new THREE.PerspectiveCamera(76, 1, 0.05, 400)
+  mode: CameraMode = 'tps'
+  aiming = false
   yaw = 0
-  pitch = -0.08
+  pitch = -0.12
   private shake = 0
   private recoil = 0
   private time = 0
+  private fov = 76
   private readonly target = new THREE.Vector3()
   private side: Point = { x: 0, z: 1 }
 
@@ -36,19 +39,25 @@ export class ArenaCamera {
       return
     }
     this.time += seconds; this.recoil = Math.max(0, this.recoil - seconds * 0.26)
-    const lookPitch = THREE.MathUtils.clamp(this.pitch - this.recoil, -1.35, 1.35)
+    const lookPitch = THREE.MathUtils.clamp(this.pitch - this.recoil, -1.25, 1.1)
     const forward = new THREE.Vector3(Math.sin(this.yaw) * Math.cos(lookPitch), Math.sin(lookPitch), Math.cos(this.yaw) * Math.cos(lookPitch))
     if (this.mode === 'fps') {
-      this.camera.position.set(position.x, position.y + 1.48, position.z)
+      this.camera.position.set(position.x, position.y + 1.55, position.z)
       this.target.copy(this.camera.position).addScaledVector(forward, 18)
     } else {
-      const follow = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw)).multiplyScalar(-5.5)
-      const desired = new THREE.Vector3(position.x + follow.x, position.y + CONFIG.camera.height * 0.22, position.z + follow.z)
-      this.camera.position.lerp(desired, 1 - Math.exp(-seconds * 12))
-      this.target.set(position.x, position.y + 1.2, position.z).addScaledVector(forward, 10)
+      const back = this.aiming ? 3.2 : 5.2
+      const shoulder = this.aiming ? 0.85 : 0.6
+      const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw))
+      const follow = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw)).multiplyScalar(-back)
+      const desired = new THREE.Vector3(position.x + follow.x + right.x * shoulder, position.y + (this.aiming ? 1.85 : 2.2), position.z + follow.z + right.z * shoulder)
+      this.camera.position.lerp(desired, 1 - Math.exp(-seconds * (this.aiming ? 18 : 12)))
+      this.camera.position.y = Math.max(0.45, this.camera.position.y)
+      this.target.set(position.x + right.x * shoulder, position.y + 1.25, position.z + right.z * shoulder).addScaledVector(forward, this.aiming ? 14 : 10)
     }
     this.camera.lookAt(this.target)
-    if (this.camera.fov !== CONFIG.camera.fov) { this.camera.fov = CONFIG.camera.fov; this.camera.updateProjectionMatrix() }
+    const wantedFov = this.aiming ? (this.mode === 'fps' ? 54 : 58) : CONFIG.camera.fov
+    this.fov += (wantedFov - this.fov) * Math.min(1, seconds * 14)
+    if (Math.abs(this.camera.fov - this.fov) > 0.01) { this.camera.fov = this.fov; this.camera.updateProjectionMatrix() }
     if (this.shake > 0 && !reducedMotion) { const s = this.shake * this.shake * 0.06; this.camera.position.x += Math.sin(this.time * 58) * s; this.camera.position.y += Math.sin(this.time * 43 + 1) * s }
     this.shake = Math.max(0, this.shake - seconds * 3)
   }
