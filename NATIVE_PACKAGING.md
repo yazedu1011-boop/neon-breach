@@ -52,6 +52,10 @@ El wrapper `scripts/native/android-build.mjs` selecciona automáticamente `gradl
 
 `.xapk` no es el formato nativo de Gradle ni el formato recomendado para Google Play. Si una tienda concreta lo exige, debe crearse después a partir del APK/AAB con su herramienta de distribución.
 
+## GitHub Actions
+
+`.github/workflows/native-builds.yml` compila automáticamente un instalador Windows Tauri, un APK Android debug y ejecuta las pruebas del servidor cada vez que se actualiza `main`. Los resultados aparecen como artefactos de la ejecución de GitHub Actions. La firma de release para publicar en Google Play o distribuir un instalador firmado requiere añadir secretos propios del proyecto; el workflow no contiene claves privadas.
+
 ## Notas del proyecto
 
 - `webDir` y `frontendDist` apuntan a `dist/`.
