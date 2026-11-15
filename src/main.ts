@@ -16,7 +16,7 @@ async function boot(): Promise<void> {
   const input = new Input(canvas)
   const audio = new Audio()
   const assets = new Assets()
-  const ui = new Ui(audio, save, input, { play: () => start(), menu: open => { if (active) ui.show(open ? 'menu' : 'hud') }, leave: () => leave(), settings: patch => applySettings(patch), touch: (action, down) => input.setTouchButton(action, down), camera: () => game?.request('camera'), dash: () => game?.request('dash'), ability: () => game?.request('ability'), interact: () => game?.request('interact') })
+  const ui = new Ui(audio, save, input, { play: () => start(), menu: open => { if (active) ui.show(open ? 'menu' : 'hud') }, leave: () => leave(), settings: patch => applySettings(patch), touch: (action, down) => input.setTouchButton(action, down), camera: () => game?.request('camera'), dash: () => game?.request('dash'), ability: () => game?.request('ability'), interact: () => game?.request('interact'), slot: slot => game?.selectSlot(slot) })
   let active = false
   let musicStarted = false
   let renderAccumulator = 0
@@ -33,7 +33,9 @@ async function boot(): Promise<void> {
   hero = loadedHero?.scene
   heroAnimations = loadedHero?.animations ?? []
   ui.setBootProgress(0.62)
-  if (safeGet(SAVE_KEY) === null) { save.update({ quality: 'low', fpsLimit: 30, autoOptimization: true }); ui.refreshSettings() }
+  if (safeGet(SAVE_KEY) === null) { save.update({ quality: 'low', fpsLimit: 30, autoOptimization: true, devicePreset: 'android', hudProfile: 'classic', hudScale: 1, hudOpacity: 0.92 }); ui.refreshSettings() }
+  document.documentElement.classList.add('android-landscape')
+  try { await (screen.orientation as ScreenOrientation & { lock?: (orientation: string) => Promise<void> }).lock?.('landscape') } catch { /* algunos navegadores solo permiten landscape dentro del APK */ }
   const renderer = new Renderer(canvas, save.data.quality)
   game = new Game(renderer, audio); game.reducedMotion = save.data.reducedMotion; game.setHeroModel(hero, heroAnimations)
   const buffers: Record<string, AudioBuffer> = {}; for (const [key, buffer] of loadedAudio) if (buffer) buffers[key] = buffer
@@ -42,7 +44,7 @@ async function boot(): Promise<void> {
   const start = () => { if (!game) return; active = true; audio.unlock(); if (!musicStarted) { if (buffers.music) audio.playBuffer(buffers.music, 'music', true); else audio.startMusic(); musicStarted = true } game.start(); ui.show('hud'); input.lockPointer() }
   const leave = () => { active = false; input.unlockPointer(); game?.leave(); ui.show('title') }
   const applySettings = (patch: Partial<SaveData>) => { const next = { ...patch }; if (patch.devicePreset && save.data.autoOptimization) { if (patch.devicePreset === 'android') Object.assign(next, { quality: 'low' as const, fpsLimit: 30 as const }); if (patch.devicePreset === 'pc') Object.assign(next, { quality: 'medium' as const, fpsLimit: 60 as const }); if (patch.devicePreset === 'joystick') Object.assign(next, { quality: 'medium' as const, fpsLimit: 60 as const }) } save.update(next); audio.setVolumes(save.data.musicVolume, save.data.sfxVolume, save.data.muted); if (game && next.quality) game.setQuality(save.data.quality); game && (game.reducedMotion = save.data.reducedMotion); ui.refreshSettings() }
-  const loop = new GameLoop({ step: dt => { input.update(); if (active && game) { const look = input.takeLook(); game.setInput(input.move.x, input.move.y, look.x, look.y); if (input.consume('toggleCamera')) game.request('camera'); if (input.consume('dash')) game.request('dash'); if (input.consume('ability')) game.request('ability'); if (input.consume('interact')) game.request('interact'); if (input.consume('reload')) game.request('reload'); game.step(dt, input.held('fire'), input.held('sprint')) } }, render: (_alpha, frameSeconds) => { renderAccumulator += frameSeconds; const renderStep = 1 / Math.max(30, save.data.fpsLimit); if (game && renderAccumulator >= renderStep) { game.render(frameSeconds); renderAccumulator = 0 } ui.frame(frameSeconds); if (active && game) ui.updateHud(game.getHud()); input.endFrame() } })
+  const loop = new GameLoop({ step: dt => { input.update(); if (active && game) { const look = input.takeLook(); game.setInput(input.move.x, input.move.y, look.x, look.y); if (input.consume('toggleCamera')) game.request('camera'); if (input.consume('dash')) game.request('dash'); if (input.consume('ability')) game.request('ability'); if (input.consume('interact')) game.request('interact'); if (input.consume('reload')) game.request('reload'); for (const [action, slot] of [['slot1', 0], ['slot2', 1], ['slot3', 2], ['slot4', 3] ] as const) if (input.consume(action)) game.selectSlot(slot); game.step(dt, input.held('fire'), input.held('sprint'), input.held('crouch')) } }, render: (_alpha, frameSeconds) => { renderAccumulator += frameSeconds; const renderStep = 1 / Math.max(30, save.data.fpsLimit); if (game && renderAccumulator >= renderStep) { game.render(frameSeconds); renderAccumulator = 0 } ui.frame(frameSeconds); if (active && game) ui.updateHud(game.getHud()); input.endFrame() } })
   loop.start(); new TouchControls(document.getElementById('ui')!, input, () => active && ui.screen === 'hud'); window.setTimeout(() => ui.show('title'), 700)
   ;(window as unknown as { __game: unknown }).__game = { game, ui, input, save }
 }

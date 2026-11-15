@@ -3,6 +3,7 @@ export type Locale = 'en' | 'zh-CN'
 export type Quality = 'low' | 'medium' | 'high'
 export type DevicePreset = 'android' | 'pc' | 'joystick'
 export type FpsLimit = 30 | 60 | 90 | 120
+export type HudProfile = 'classic' | 'competitive' | 'lefty' | 'custom'
 
 export type SaveData = {
   version: 1
@@ -17,6 +18,13 @@ export type SaveData = {
   autoOptimization: boolean
   profileName: string
   selectedHero: string
+  hudProfile: HudProfile
+  hudScale: number
+  hudOpacity: number
+  leftHanded: boolean
+  autoPickup: boolean
+  gyroAim: boolean
+  vibration: boolean
 }
 
 export const SAVE_KEY = 'neonbreach.save'
@@ -30,15 +38,23 @@ export function defaultSave(): SaveData {
     muted: false,
     quality: 'low',
     reducedMotion: false,
-    devicePreset: 'pc',
+    devicePreset: 'android',
     fpsLimit: 30,
     autoOptimization: true,
     profileName: 'NyxRunner-042',
     selectedHero: 'Nyx Vale',
+    hudProfile: 'classic',
+    hudScale: 1,
+    hudOpacity: 0.92,
+    leftHanded: false,
+    autoPickup: true,
+    gyroAim: false,
+    vibration: true,
   }
 }
 
 const clamp01 = (v: unknown, fallback: number) => typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback
+const clampRange = (v: unknown, min: number, max: number, fallback: number) => typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback
 const cleanName = (v: unknown, fallback: string) => typeof v === 'string' && /^[A-Za-z0-9_-]{3,16}$/.test(v) ? v : fallback
 
 export function parseSave(raw: string | null): SaveData {
@@ -65,6 +81,13 @@ export function parseSave(raw: string | null): SaveData {
     autoOptimization: data.autoOptimization !== false,
     profileName: cleanName(data.profileName, base.profileName),
     selectedHero: typeof data.selectedHero === 'string' ? data.selectedHero.slice(0, 32) : base.selectedHero,
+    hudProfile: data.hudProfile === 'competitive' || data.hudProfile === 'lefty' || data.hudProfile === 'custom' ? data.hudProfile : base.hudProfile,
+    hudScale: clampRange(data.hudScale, 0.78, 1.35, base.hudScale),
+    hudOpacity: clampRange(data.hudOpacity, 0.45, 1, base.hudOpacity),
+    leftHanded: data.leftHanded === true,
+    autoPickup: data.autoPickup !== false,
+    gyroAim: data.gyroAim === true,
+    vibration: data.vibration !== false,
   }
 }
 

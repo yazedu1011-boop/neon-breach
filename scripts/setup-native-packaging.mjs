@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync, writeFileSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 
@@ -117,9 +117,20 @@ function addAndroidPlatform() {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
+function enforceLandscape() {
+  const manifest = resolve(root, 'android/app/src/main/AndroidManifest.xml')
+  if (!existsSync(manifest)) return
+  const source = readFileSync(manifest, 'utf8')
+  if (source.includes('android:screenOrientation="landscape"')) return
+  const patched = source.replace(/(<activity\b[^>]*android:name="[^"]*MainActivity"[^>]*)>/, '$1\n            android:screenOrientation="landscape">')
+  if (patched !== source) writeFileSync(manifest, patched)
+  console.log('Android configurado en orientación landscape.')
+}
+
 writeProjectFiles()
 if (install) installDependencies()
 if (addAndroid) addAndroidPlatform()
+if (existsSync(resolve(root, 'android'))) enforceLandscape()
 if (checkOnly || args.has('--check-tools')) {
   console.log('\nHerramientas nativas:')
   checkTool('cargo', 'instala Rust desde https://rustup.rs')

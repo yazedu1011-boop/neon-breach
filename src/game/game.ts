@@ -7,9 +7,10 @@ import { ArenaCamera } from './camera'
 import { Effects } from './fx'
 
 export type GameAudio = { shot?: AudioBuffer; dash?: AudioBuffer; reward?: AudioBuffer }
-export type GameHud = { health: number; shield: number; ammo: number; reserve: number; mode: 'fps' | 'tps'; ability: number; dash: number; targetCount: number; score: number; message: string; npc: string; fps: number }
+export type GameHud = { health: number; shield: number; ammo: number; reserve: number; mode: 'fps' | 'tps'; ability: number; dash: number; targetCount: number; score: number; message: string; npc: string; fps: number; activeSlot: number; weaponName: string; weaponSlots: string[]; speedModifier: number; storm: number }
 type Target = { root: THREE.Group; hp: number; maxHp: number; respawn: number; label: string }
 type Npc = { root: THREE.Group; name: string; dialogue: string[]; index: number }
+type WeaponSpec = { name: string; short: string; speed: number; magazine: number; fireRate: number; color: string }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 const neon = (color: string, intensity = 1.6) => new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: 0.42, emissive: color, emissiveIntensity: intensity })
@@ -51,6 +52,15 @@ export class Game {
   private heroMixer?: THREE.AnimationMixer
   private heroIdle?: THREE.AnimationAction
   private heroWalk?: THREE.AnimationAction
+  private readonly weaponSlots: WeaponSpec[] = [
+    { name: 'Rifle Prisma', short: 'ARMA 1', speed: 0.86, magazine: 24, fireRate: 0.12, color: '#65f6ff' },
+    { name: 'Escopeta Vector', short: 'ARMA 2', speed: 0.72, magazine: 8, fireRate: 0.62, color: '#ff3b9d' },
+    { name: 'Pistola Cero', short: 'PISTOLA', speed: 0.94, magazine: 12, fireRate: 0.24, color: '#ffcc66' },
+    { name: 'Puño', short: 'PUÑO', speed: 1.08, magazine: 1, fireRate: 0.5, color: '#8cffb0' },
+  ]
+  private activeSlot = 0
+  private crouchBlend = 0
+  private storm = 100
 
   constructor(private readonly renderer: Renderer, private readonly audio: Audio) {
     this.arena = new Arena(renderer.shadowMapSize)
@@ -78,17 +88,29 @@ export class Game {
   setQuality(quality: Quality): void { this.renderer.applyQuality(quality) }
   setInput(x: number, y: number, lookX = 0, lookY = 0): void { this.move.x = x; this.move.y = y; this.inputLook = { x: lookX, y: lookY } }
   request(action: 'interact' | 'dash' | 'ability' | 'reload' | 'camera'): void { if (action === 'interact') this.requestedInteract = true; if (action === 'dash') this.requestedDash = true; if (action === 'ability') this.requestedAbility = true; if (action === 'reload') this.requestedReload = true; if (action === 'camera') this.requestedCamera = true }
+  selectSlot(slot: number): void {
+    const next = Math.max(0, Math.min(this.weaponSlots.length - 1, Math.round(slot)))
+    if (next === this.activeSlot) return
+    this.activeSlot = next
+    this.ammo = Math.min(this.weaponSlots[next].magazine, this.ammo)
+    this.fireCooldown = 0.14
+    const spec = this.weaponSlots[next]
+    this.weapon.traverse(object => { if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial) object.material.color.set(spec.color) })
+    this.message = `${spec.short}: ${spec.name} equipada · velocidad ${Math.round(spec.speed * 100)}%`
+  }
   setFire(held: boolean): void { if (held) this.shootIfReady() }
-  getHud(): GameHud { return { health: this.health, shield: this.shield, ammo: this.ammo, reserve: this.reserve, mode: this.camera.mode, ability: this.abilityCooldown, dash: this.dashCooldown, targetCount: this.targets.filter(t => t.hp > 0).length, score: this.score, message: this.message, npc: this.npcMessage, fps: this.fps } }
+  getHud(): GameHud { const spec = this.weaponSlots[this.activeSlot]; return { health: this.health, shield: this.shield, ammo: this.ammo, reserve: this.reserve, mode: this.camera.mode, ability: this.abilityCooldown, dash: this.dashCooldown, targetCount: this.targets.filter(t => t.hp > 0).length, score: this.score, message: this.message, npc: this.npcMessage, fps: this.fps, activeSlot: this.activeSlot, weaponName: spec.name, weaponSlots: this.weaponSlots.map(item => item.short), speedModifier: spec.speed, storm: this.storm } }
 
-  step(dt: number, fireHeld = false, sprint = false): void {
+  step(dt: number, fireHeld = false, sprint = false, crouch = false): void {
     const before = performance.now(); this.time += dt; this.fps += ((1 / Math.max(dt, 0.001)) - this.fps) * 0.08
     this.fireCooldown = Math.max(0, this.fireCooldown - dt); this.reloadTimer = Math.max(0, this.reloadTimer - dt); this.abilityCooldown = Math.max(0, this.abilityCooldown - dt); this.dashCooldown = Math.max(0, this.dashCooldown - dt)
     this.camera.yaw -= this.inputLook.x; this.camera.pitch = clamp(this.camera.pitch - this.inputLook.y, -1.15, 0.9); this.inputLook = { x: 0, y: 0 }
     if (this.requestedCamera) { this.camera.toggle(); this.message = this.camera.mode === 'fps' ? 'Cámara en primera persona.' : 'Cámara táctica en tercera persona.'; this.requestedCamera = false }
     const forward = new THREE.Vector3(Math.sin(this.camera.yaw), 0, Math.cos(this.camera.yaw)); const right = new THREE.Vector3(forward.z, 0, -forward.x)
     const direction = right.multiplyScalar(this.move.x).add(forward.multiplyScalar(this.move.y)); if (direction.lengthSq() > 1) direction.normalize()
-    const speed = sprint ? 8.4 : 5.2; this.avatar.position.addScaledVector(direction, speed * dt); this.avatar.position.x = clamp(this.avatar.position.x, -22, 22); this.avatar.position.z = clamp(this.avatar.position.z, -22, 22)
+    const targetCrouch = crouch ? 1 : 0; this.crouchBlend += (targetCrouch - this.crouchBlend) * Math.min(1, dt * 12)
+    const baseSpeed = crouch ? 2.8 : (sprint ? 8.4 : 5.2); const speed = baseSpeed * this.weaponSlots[this.activeSlot].speed; this.avatar.position.addScaledVector(direction, speed * dt); this.avatar.position.x = clamp(this.avatar.position.x, -22, 22); this.avatar.position.z = clamp(this.avatar.position.z, -22, 22); this.avatar.scale.y = 1 - this.crouchBlend * 0.18
+    this.storm = Math.max(0, this.storm - dt * 0.012)
     if (this.requestedDash) { this.doDash(direction); this.requestedDash = false }
     if (this.requestedAbility) { this.doAbility(); this.requestedAbility = false }
     if (this.requestedReload) { this.reload(); this.requestedReload = false }
@@ -127,14 +149,15 @@ export class Game {
     data.forEach(([name, [x, z], dialogue]) => { const root = new THREE.Group(); root.position.set(x, 0, z); const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.85, 4, 10), new THREE.MeshStandardMaterial({ color: '#554a6e', roughness: 0.7 })); body.position.y = 0.9; root.add(body); const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 10), neon('#ffcc66', 1.1)); head.position.y = 1.55; root.add(head); const halo = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.025, 6, 32), neon('#ffcc66', 2)); halo.rotation.x = Math.PI / 2; halo.position.y = 2.15; root.add(halo); root.userData.npc = name; this.arena.addDynamic(root); this.npcs.push({ root, name, dialogue, index: 0 }) })
   }
   private shootIfReady(): void {
+    const spec = this.weaponSlots[this.activeSlot]
     if (!this.started || this.reloadTimer > 0 || this.fireCooldown > 0) return
     if (this.ammo <= 0) { this.reload(); return }
-    this.ammo -= 1; this.fireCooldown = 0.12; this.camera.addRecoil(); this.camera.addShake(0.14); this.playBuffer(this.audioBuffers.shot)
+    this.ammo -= 1; this.fireCooldown = spec.fireRate; this.camera.addRecoil(); this.camera.addShake(0.14); this.playBuffer(this.audioBuffers.shot)
     this.ray.setFromCamera(new THREE.Vector2(0, 0), this.camera.camera); const hits = this.ray.intersectObjects(this.targets.flatMap(t => [t.root]), true); const hit = hits.find(h => h.object.parent?.userData.target || h.object.userData.target)
     const end = hit?.point ?? this.ray.ray.origin.clone().add(this.ray.ray.direction.clone().multiplyScalar(45)); const tracerGeo = new THREE.BufferGeometry().setFromPoints([this.camera.camera.position.clone(), end]); const tracer = new THREE.Line(tracerGeo, new THREE.LineBasicMaterial({ color: '#65f6ff', transparent: true, opacity: 0.8 })); this.arena.scene.add(tracer); this.tracers.push({ line: tracer, life: 0.075 })
     if (hit) { let root = hit.object; while (root.parent && !root.userData.target) root = root.parent; const target = this.targets.find(t => t.root === root); if (target) { target.hp -= 25; this.effects.burst(hit.point, target.hp <= 0 ? '#ffcc66' : '#65f6ff', target.hp <= 0 ? 28 : 9, 4); if (target.hp <= 0) { target.respawn = 4; this.score += 100; this.message = `${target.label} neutralizado · +100 XP`; this.playBuffer(this.audioBuffers.reward) } else this.message = `${target.label} impactado · ${Math.max(0, target.hp)}%` } }
   }
-  private reload(): void { if (this.reloadTimer > 0 || this.ammo >= 24 || this.reserve <= 0) return; this.reloadTimer = 1.05; window.setTimeout(() => { const need = 24 - this.ammo; const take = Math.min(need, this.reserve); this.ammo += take; this.reserve -= take; this.message = 'Cargador listo.' }, 1060) }
+  private reload(): void { const capacity = this.weaponSlots[this.activeSlot].magazine; if (this.reloadTimer > 0 || this.ammo >= capacity || this.reserve <= 0) return; this.reloadTimer = this.activeSlot === 1 ? 1.35 : 1.05; window.setTimeout(() => { const need = capacity - this.ammo; const take = Math.min(need, this.reserve); this.ammo += take; this.reserve -= take; this.message = 'Cargador listo.' }, this.reloadTimer * 1000 + 40) }
   private doDash(direction: THREE.Vector3): void { if (!this.started || this.dashCooldown > 0) return; const dir = direction.lengthSq() > 0.01 ? direction.normalize() : new THREE.Vector3(Math.sin(this.camera.yaw), 0, Math.cos(this.camera.yaw)); this.avatar.position.addScaledVector(dir, 4.5); this.avatar.position.x = clamp(this.avatar.position.x, -22, 22); this.avatar.position.z = clamp(this.avatar.position.z, -22, 22); this.dashCooldown = 5; this.camera.addShake(0.18); this.effects.ring(this.avatar.position.clone().setY(0.7), '#65f6ff'); this.playBuffer(this.audioBuffers.dash); this.message = 'CORTE DE FASE ejecutado.' }
   private doAbility(): void { if (!this.started || this.abilityCooldown > 0) return; this.abilityCooldown = 8; const pos = this.avatar.position.clone(); this.effects.ring(pos.setY(1.3), '#ff3b9d'); this.targets.forEach(t => { if (t.hp > 0 && t.root.position.distanceTo(this.avatar.position) < 9) t.root.children.forEach(o => { if (o instanceof THREE.Mesh) (o.material as THREE.MeshStandardMaterial).emissiveIntensity = 4 }) }); this.message = 'ECO PRISMA: objetivos cercanos marcados durante 3 s.'; this.playBuffer(this.audioBuffers.dash) }
   private interactIfRequested(): void { if (!this.requestedInteract) return; this.requestedInteract = false; const npc = this.npcs.find(n => n.root.position.distanceTo(this.avatar.position) < 3.3); if (npc) { this.npcMessage = `${npc.name}: ${npc.dialogue[npc.index % npc.dialogue.length]}`; npc.index += 1; this.message = `Interacción registrada con ${npc.name}.` } else { const chest = new THREE.Vector3(0, 0, 0); if (this.avatar.position.distanceTo(chest) < 4) { const rarity = this.rollRarity(); this.npcMessage = `Cofre de entrenamiento abierto: recompensa ${rarity}. Las recompensas reales se validan en servidor.`; this.message = 'Recompensa de práctica añadida al inventario local.'; this.playBuffer(this.audioBuffers.reward) } else this.message = 'No hay una interacción válida en alcance.' } }

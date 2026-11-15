@@ -1,43 +1,68 @@
-# TODO — Neon Breach: Fracture Ops
+# TODO — Neon Breach: Fracture Ops (Android landscape)
 
-## Slice jugable FPS/TPS y arena
-- [ ] La arena sci-fi debe abrir desde el lobby y permitir movimiento WASD/touch/gamepad, sprint, apuntado, disparo, recarga, dash, interacción y pausa.
-- [ ] La cámara debe iniciar en primera persona y cambiar a tercera persona al pulsar V o el control equivalente.
-- [ ] El HUD debe mostrar retícula, vida, escudo, munición, enfriamientos, objetivo y estado de integridad sin tapar el combate.
-- [ ] La arena debe tener coberturas, plataformas, luces, estructuras, objetivos de Aim y al menos un cofre/pickup.
+## Partida battle royale jugable
+- [ ] Desde el lobby se debe entrar a una partida real, no a una pantalla decorativa.
+- [ ] La partida debe iniciar en orientación horizontal y usar un personaje 3D controlable en tercera persona, con botón para cambiar a primera persona.
+- [ ] El mapa debe incluir módulos reconocibles de Ciudad Vertical, Puerto Industrial, Bosque de Cristal, Complejo Orbital, Cañón Fracturado y Zona Central, con coberturas, alturas, rutas y loot.
+- [ ] Deben existir tormenta/zona segura, bots, daño, escudo, eliminación y reinicio de partida.
 
-## Héroes, NPCs e historia
-- [ ] Debe existir un elenco visible con nombres, habilidades, enfriamientos e historias conectadas, incluyendo parientes/amigos.
-- [ ] Los NPCs interactuables deben ser invulnerables, tener textos únicos y no formar parte de la lógica de daño.
-- [ ] Nyx Vale debe ser el personaje seleccionado del slice y sus habilidades deben producir feedback visual y de cooldown.
+## Movimiento y cámara táctil
+- [ ] El joystick izquierdo debe mover con aceleración/frenado suaves, zona muerta configurable y diagonales normalizadas.
+- [ ] El joystick derecho debe controlar la cámara sin robar el dedo del movimiento ni disparar accidentalmente.
+- [ ] Deben funcionar sprint, salto, agacharse, deslizamiento, apuntado, disparo, recarga, interacción, habilidad, construcción y cambio de cámara.
+- [ ] La cámara debe suavizarse, respetar límites verticales, evitar atravesar paredes y mantener el centro de combate libre.
 
-## Progresión, loot y modos
-- [ ] El inventario, la tienda, recompensas, pase gratuito y pase premium deben aparecer en el lobby; el pase premium debe indicar «Próximamente».
-- [ ] Las rarezas deben mostrar Común, Poco común, Rara, Legendaria, Mística y Especial.
-- [ ] Los pesos visibles deben normalizar los valores originales 70/40/30/10/5/1 a un total de 100%, sin presentar probabilidades inválidas.
-- [ ] Las tarjetas de 1v1, 2v2, 3v3, 4v4, 5v5, Battle Royale clasificatorio y Entrenamiento/Aim deben ser seleccionables o mostrar su estado de preparación.
+## Cuatro espacios de armas y peso
+- [ ] El HUD y el inventario deben mostrar exactamente cuatro espacios: `Arma 1`, `Arma 2`, `Pistola` y `Puño`.
+- [ ] El usuario debe poder cambiar de slot tocando el espacio correspondiente y ver claramente el slot activo.
+- [ ] La velocidad debe depender del arma en mano: Puño más rápido, Pistola ligera, armas primarias intermedias y armas pesadas más lentas.
+- [ ] Cada arma debe tener munición, recarga, cadencia, recoil, daño, indicador de impacto y feedback visual/audio; no debe existir pay-to-win.
 
-## Perfil, login y plataforma
-- [ ] El jugador debe recibir un nombre aleatorio recomendado, poder editarlo y recibir error si el nombre ya existe localmente.
-- [ ] Google, Facebook y Usuario deben estar visibles como acceso preparado, sin simular un OAuth real ni permitir suplantación.
-- [ ] La interfaz debe mostrar presets Android, PC y Joystick, además de configuraciones manuales y automáticas.
-- [ ] El primer arranque debe usar gráficos bajos, 30 FPS máximos y optimización activa; los ajustes manuales deben ofrecer niveles de gráficos y FPS.
-- [ ] Debe declararse compatibilidad objetivo con Android, PC, PlayStation y Xbox, indicando que el soporte nativo de consolas no está incluido en el prototipo web.
+## HUD móvil configurable
+- [ ] Deben existir cuatro HUD guardables: `Clásico`, `Competitivo`, `Zurdo` y `Personalizado`.
+- [ ] El editor debe permitir arrastrar cada botón, modificar tamaño, escala, opacidad y visibilidad, restaurar el diseño y guardar la selección local.
+- [ ] Los controles deben respetar safe areas, tamaño táctil cómodo, feedback de presión y evitar toques accidentales.
+- [ ] El HUD debe mostrar vida, escudo, retícula, munición, slot activo, cuatro slots, cooldowns, minimapa/objetivo y estado de partida sin tapar el combate.
 
-## Juego limpio y políticas
-- [ ] Deben existir vistas de Política de usuario, Privacidad, Juego limpio, seguridad, integridad de archivos y apelaciones.
-- [ ] La UX debe distinguir señales Legit, Bypass y Blatant como niveles conceptuales, expulsar anomalías de la partida en el slice y explicar que la decisión productiva requiere servidor autoritativo.
-- [ ] Debe existir un flujo conceptual de advertencia en lobby y baneo escalonado de 1–7 días, sin fingir que una IP local está baneada.
-- [ ] El diseño debe explicar que inventario, drops, recompensas, ranking y pagos necesitan validación server-authoritative en producción.
+## Loot, cofres y construcción
+- [ ] Debe existir loot en suelo y cofres con interacción y animación.
+- [ ] Las rarezas visibles deben ser Común, Poco común, Rara, Legendaria, Mística y Especial.
+- [ ] Los pesos 70/40/30/10/5/1 deben mostrarse normalizados a 44.87%, 25.64%, 19.23%, 6.41%, 3.21% y 0.64%.
+- [ ] Debe existir construcción funcional de pared, piso y rampa con previsualización verde/roja, costes, colisión y límites.
 
-## Entrega y calidad
-- [ ] `pnpm build`, pruebas existentes y smoke del starter deben ejecutarse; cualquier cobertura del starter que ya no aplique debe quedar sustituida por checks del slice.
-- [ ] El proyecto debe tener rutas de juego declaradas en `public/manus-routes.json` y una identidad de marca/fav icon válida.
-- [ ] Debe guardarse un checkpoint con la fuente y assets registrados; la publicación multiplayer queda pendiente de seleccionar equipo cloud y validar WSS público.
+## Personajes, habilidades y NPCs
+- [ ] Nyx Vale debe tener Corte de Fase y Prisma de Rastreo con cooldown visible, VFX legible y bloqueo contra atravesar paredes.
+- [ ] Aster Quill, Mako Ren y las referencias a Orin Vale deben conservar relaciones de hermana, amigo y hermano desaparecido.
+- [ ] Los NPCs deben tener diálogos únicos, ser invulnerables, no bloquear soft-locks y reaparecer tras reiniciar.
 
-## Empaquetado PC y Android
-- [x] Debe existir un script idempotente que escriba la configuración Tauri 2 para usar `dist/`, levantar Vite en `http://localhost:3000`, generar instaladores Windows NSIS `.exe` y `.msi`, y mantener una ventana mínima redimensionable.
-- [x] Debe existir una configuración Capacitor con `appId` estable, `appName` de Neon Breach, `webDir: dist`, esquema Android HTTPS y sin permisos sensibles añadidos.
-- [x] Deben existir comandos pnpm para preparar dependencias, comprobar Rust/Java/ADB, sincronizar Capacitor, abrir Android Studio, generar APK debug y generar AAB release.
-- [x] El script debe funcionar de forma multiplataforma al seleccionar `gradlew` o `gradlew.bat`, copiar el favicon nativo inicial y explicar que el APK/AAB debe firmarse antes de distribución.
-- [x] El empaquetado debe declarar que XAPK no es un artefacto Gradle estándar y no debe fingir que se generó un instalador nativo sin tener Rust/Android SDK disponibles.
+## Ideas móviles adicionales
+- [ ] Auto-pickup configurable para munición, curación y loot.
+- [ ] Rueda rápida de curación y consumibles.
+- [ ] Ping contextual para marcar enemigo, loot y ubicación.
+- [ ] Vibración opcional, giroscopio opcional y modo ahorro térmico.
+- [ ] Recomendación automática de calidad basada en FPS/frame time, sin modificar archivos del dispositivo.
+
+## Lobby, progresión y políticas
+- [ ] El lobby debe mostrar jugar, modos, héroe, inventario, tienda, recompensas, perfil, ajustes, seguridad y políticas.
+- [ ] El pase gratuito debe ser visible; el pase premium debe indicar `Próximamente`.
+- [ ] Google, Facebook y Usuario deben aparecer como accesos preparados, sin simular OAuth real.
+- [ ] Deben existir textos de usuario, privacidad, juego limpio, seguridad, integridad, compras, reembolsos y apelaciones como borradores pendientes de revisión legal.
+- [ ] Las tarjetas de 1v1, 2v2, 3v3, 4v4, 5v5, Battle Royale clasificatorio y Entrenamiento/Aim deben mostrar estado jugable o `En desarrollo` con honestidad.
+
+## Rendimiento y APK Android
+- [ ] Primer inicio: Android landscape, gráficos bajos, máximo 30 FPS y optimización activa.
+- [ ] Deben existir presets Android Bajo, Android Medio y modo ahorro térmico.
+- [ ] Deben existir resolución dinámica, culling/LOD/instancing y texturas comprimidas donde proceda.
+- [ ] El wrapper Capacitor debe solicitar orientación landscape y generar APK debug desde `dist/`.
+- [ ] La build debe ejecutarse con typecheck, pruebas, build fuente y smoke checks; no se promete cero bugs.
+
+## Multiplayer y seguridad preparada
+- [ ] Daño, movimiento, loot, inventario, construcciones, ranking, pagos y recompensas deben estar marcados como server-authoritative para producción.
+- [ ] Las señales Legit/Suspicious/Bypass/Blatant deben evitar falsos positivos, registrar evidencia y no banear solo por IP o una única señal.
+- [ ] Si el backend no está desplegado, la interfaz debe decir `Preparado` o `Próximamente` y no fingir online competitivo.
+
+## Entrega
+- [x] Existe scaffold Tauri/Capacitor y workflow de builds nativas en GitHub.
+- [x] El repositorio remoto es `yazedu1011-boop/neon-breach`.
+- [ ] Reemplazar el actual slice de campo de tiro por la primera partida Android battle royale jugable.
+- [ ] Guardar checkpoint del proyecto después de validar el nuevo vertical slice.

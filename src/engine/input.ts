@@ -1,12 +1,13 @@
-export type Action = 'jump' | 'sprint' | 'dash' | 'pause' | 'confirm' | 'back' | 'interact' | 'fire' | 'reload' | 'ability' | 'toggleCamera'
+export type Action = 'jump' | 'sprint' | 'crouch' | 'dash' | 'pause' | 'confirm' | 'back' | 'interact' | 'fire' | 'aim' | 'reload' | 'ability' | 'build' | 'toggleCamera' | 'slot1' | 'slot2' | 'slot3' | 'slot4'
 export type InputMethod = 'keyboard' | 'gamepad' | 'touch'
 
 const KEY_BINDINGS: Record<Action, string[]> = {
-  jump: ['Space'], sprint: ['ShiftLeft', 'ShiftRight'], dash: ['KeyF'], pause: ['Escape', 'KeyP'],
-  confirm: ['Enter', 'NumpadEnter'], back: [], interact: ['KeyE'], fire: [], reload: ['KeyR'], ability: ['KeyQ'], toggleCamera: ['KeyV'],
+  jump: ['Space'], sprint: ['ShiftLeft', 'ShiftRight'], crouch: ['ControlLeft', 'ControlRight'], dash: ['KeyC'], pause: ['Escape', 'KeyP'],
+  confirm: ['Enter', 'NumpadEnter'], back: [], interact: ['KeyE'], fire: [], aim: [], reload: ['KeyR'], ability: ['KeyQ'], build: ['KeyB'], toggleCamera: ['KeyV'],
+  slot1: ['Digit1'], slot2: ['Digit2'], slot3: ['Digit3'], slot4: ['Digit4'],
 }
 const MOVE_KEYS = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'] }
-const PAD_BINDINGS: Record<Action, number[]> = { jump: [0], sprint: [4, 10], dash: [2], pause: [9], confirm: [0], back: [1], interact: [3], fire: [7], reload: [5], ability: [4], toggleCamera: [2] }
+const PAD_BINDINGS: Record<Action, number[]> = { jump: [0], sprint: [4, 10], crouch: [1], dash: [2], pause: [9], confirm: [0], back: [1], interact: [3], fire: [7], aim: [6], reload: [5], ability: [4], build: [8], toggleCamera: [2], slot1: [12], slot2: [13], slot3: [14], slot4: [15] }
 
 export class Input {
   readonly move = { x: 0, y: 0 }
@@ -18,6 +19,7 @@ export class Input {
   private held_ = new Set<Action>()
   private pressed_ = new Set<Action>()
   private touchMove = { x: 0, y: 0 }
+  private touchLook = { x: 0, y: 0 }
   private touchButtons = new Set<Action>()
   private padPrev = new Set<Action>()
   private mouseFire = false
@@ -36,14 +38,14 @@ export class Input {
       if (!typing && (e.code === 'Space' || e.code.startsWith('Arrow'))) e.preventDefault()
     })
     on(window, 'keyup', e => this.keys.delete(e.code))
-    on(window, 'blur', () => { this.keys.clear(); this.mouseFire = false })
+    on(window, 'blur', () => { this.keys.clear(); this.mouseFire = false; this.touchMove.x = 0; this.touchMove.y = 0; this.touchLook.x = 0; this.touchLook.y = 0 })
     on(window, 'mousedown', e => {
+      if (e.button === 2) { this.held_.add('aim'); return }
       if (e.button !== 0) return
       this.mouseFire = true; this.method = 'keyboard'; this.pressed_.add('fire')
-      if (document.pointerLockElement === this.canvas) return
-      this.lockPointer()
+      if (document.pointerLockElement !== this.canvas) this.lockPointer()
     })
-    on(window, 'mouseup', e => { if (e.button === 0) this.mouseFire = false })
+    on(window, 'mouseup', e => { if (e.button === 0) this.mouseFire = false; if (e.button === 2) this.held_.delete('aim') })
     on(window, 'mousemove', e => {
       if (document.pointerLockElement !== this.canvas) return
       this.look.x += e.movementX * 0.0022; this.look.y += e.movementY * 0.0022
@@ -54,8 +56,13 @@ export class Input {
   lockPointer(): void { if (this.method !== 'touch' && document.pointerLockElement !== this.canvas) this.canvas.requestPointerLock?.()?.catch?.(() => undefined) }
   unlockPointer(): void { if (document.pointerLockElement) document.exitPointerLock() }
   setTouchMove(x: number, y: number): void { this.method = 'touch'; this.touchMove.x = x; this.touchMove.y = y }
+  setTouchLook(x: number, y: number): void { this.method = 'touch'; this.touchLook.x = x; this.touchLook.y = y }
   addTouchLook(dx: number, dy: number): void { this.method = 'touch'; this.look.x += dx * 0.006; this.look.y += dy * 0.006 }
-  setTouchButton(action: Action, down: boolean): void { this.method = 'touch'; if (down && !this.touchButtons.has(action)) this.pressed_.add(action); if (down) this.touchButtons.add(action); else this.touchButtons.delete(action) }
+  setTouchButton(action: Action, down: boolean): void {
+    this.method = 'touch'
+    if (down && !this.touchButtons.has(action)) this.pressed_.add(action)
+    if (down) this.touchButtons.add(action); else this.touchButtons.delete(action)
+  }
 
   update(): void {
     const k = (codes: string[]) => codes.some(code => this.keys.has(code))
@@ -66,9 +73,12 @@ export class Input {
     if (this.mouseFire) this.held_.add('fire')
     for (const action of this.touchButtons) this.held_.add(action)
     if (this.touchMove.x !== 0 || this.touchMove.y !== 0) { x = this.touchMove.x; y = this.touchMove.y }
+    this.look.x += this.touchLook.x * 0.055
+    this.look.y += this.touchLook.y * 0.055
+    this.touchLook.x *= 0.72; this.touchLook.y *= 0.72
     const pad = navigator.getGamepads?.().find(p => p && p.connected)
     if (pad) {
-      const dead = (v: number) => Math.abs(v) < 0.18 ? 0 : v
+      const dead = (v: number) => Math.abs(v) < 0.18 ? 0 : Math.sign(v) * ((Math.abs(v) - 0.18) / 0.82)
       const lx = dead(pad.axes[0] ?? 0), ly = dead(pad.axes[1] ?? 0), rx = dead(pad.axes[2] ?? 0), ry = dead(pad.axes[3] ?? 0)
       const active = lx !== 0 || ly !== 0 || rx !== 0 || ry !== 0 || pad.buttons.some(b => b.pressed)
       if (active) this.method = 'gamepad'
