@@ -34,3 +34,10 @@
 - [ ] `pnpm build`, pruebas existentes y smoke del starter deben ejecutarse; cualquier cobertura del starter que ya no aplique debe quedar sustituida por checks del slice.
 - [ ] El proyecto debe tener rutas de juego declaradas en `public/manus-routes.json` y una identidad de marca/fav icon válida.
 - [ ] Debe guardarse un checkpoint con la fuente y assets registrados; la publicación multiplayer queda pendiente de seleccionar equipo cloud y validar WSS público.
+
+## Empaquetado PC y Android
+- [x] Debe existir un script idempotente que escriba la configuración Tauri 2 para usar `dist/`, levantar Vite en `http://localhost:3000`, generar instaladores Windows NSIS `.exe` y `.msi`, y mantener una ventana mínima redimensionable.
+- [x] Debe existir una configuración Capacitor con `appId` estable, `appName` de Neon Breach, `webDir: dist`, esquema Android HTTPS y sin permisos sensibles añadidos.
+- [x] Deben existir comandos pnpm para preparar dependencias, comprobar Rust/Java/ADB, sincronizar Capacitor, abrir Android Studio, generar APK debug y generar AAB release.
+- [x] El script debe funcionar de forma multiplataforma al seleccionar `gradlew` o `gradlew.bat`, copiar el favicon nativo inicial y explicar que el APK/AAB debe firmarse antes de distribución.
+- [x] El empaquetado debe declarar que XAPK no es un artefacto Gradle estándar y no debe fingir que se generó un instalador nativo sin tener Rust/Android SDK disponibles.

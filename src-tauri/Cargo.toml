@@ -1,0 +1,20 @@
+[package]
+name = "neonbreach"
+version = "0.1.0"
+description = "Neon Breach: Fracture Ops"
+authors = ["Neon Breach Team"]
+edition = "2021"
+
+[lib]
+name = "neonbreach_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["custom-protocol"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

@@ -57,6 +57,10 @@ Se elige **Brutalismo neón táctico**.
 - Menú de perfil con nombre recomendado editable y regla de nombre único local; login UI preparada sin OAuth simulado.
 - Panel de seguridad con monitor de integridad conceptual, niveles Legit/Bypass/Blatant como etiquetas de riesgo, expulsión de partida para anomalías y baneo temporal escalonado como diseño de servidor pendiente.
 
+## Empaquetado nativo
+
+La build web de `dist/` se reutiliza en dos contenedores nativos. Tauri 2 usa `src-tauri/tauri.conf.json` y Cargo para generar instaladores Windows NSIS `.exe` y `.msi`; Capacitor usa `capacitor.config.ts` con `webDir: dist` para generar el proyecto Android y sus APK/AAB. `scripts/setup-native-packaging.mjs` escribe ambos scaffolds de forma idempotente, puede instalar dependencias con `--install`, inicializar Android con `--android` y diagnosticar Rust/Java/ADB. Los artefactos requieren firma real antes de distribución. XAPK queda explícitamente fuera del pipeline estándar porque no es un artefacto Gradle nativo.
+
 ## Límites honestos
 
 El cliente local sirve para demostrar UX y combate, pero no es una frontera de seguridad. Para producción se debe mover la autoridad de movimiento, impactos, inventario, drops y recompensas a un servidor de partidas con validación, replay/telemetría, firma de builds, integridad de archivos y revisión humana. Los baneos por IP no deben ser la única señal y requieren políticas de privacidad, retención y apelación.

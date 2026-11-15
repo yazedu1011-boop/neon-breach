@@ -16,3 +16,9 @@ shots/
 /assets/models/nyx-vale-animated.glb
 /assets/models/nyx-vale-rigged.glb
 /public/assets/
+/src-tauri/target/
+/android/.gradle/
+/android/app/build/
+/android/build/
+/android/capacitor-cordova-android-plugins/
+/android/local.properties
