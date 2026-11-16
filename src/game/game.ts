@@ -145,9 +145,9 @@ export class Game {
     this.heroPrototype = model; this.heroClips = clips
     this.applyCharacterModel()
   }
-  start(): void { this.started = true; this.matchState = 'playing'; this.message = 'Explora la isla, abre cofres y sobrevive a la tormenta.'; this.avatar.visible = true; this.applyCharacterModel(); this.avatar.position.copy(SPAWN); this.camera.yaw = Math.PI; this.camera.pitch = -0.12 }
+  start(): void { this.started = true; this.matchState = 'playing'; this.message = 'Explora la isla, abre cofres y sobrevive a la tormenta.'; this.avatar.visible = true; this.applyCharacterModel(); this.avatar.position.copy(SPAWN); this.avatar.position.y = this.arena.heightAt(this.avatar.position.x, this.avatar.position.z); this.camera.yaw = Math.PI; this.camera.pitch = -0.12 }
   leave(): void { this.started = false; this.score = 0; this.kills = 0; this.avatar.position.copy(SPAWN); this.message = 'Sesión local cerrada.' }
-  restart(): void { this.matchState = 'playing'; this.health = 100; this.shield = 50; this.ammo = this.weaponSlots[this.activeSlot].magazine; this.reserve = 240; this.stormRadius = 100; this.stormTimer = 0; this.kills = 0; this.avatar.position.copy(SPAWN); this.camera.yaw = Math.PI; this.velocity.set(0, 0, 0); this.chests.forEach(chest => { chest.opened = false; chest.openAmount = 0; chest.lid.rotation.x = 0 }); this.message = 'Nueva partida: explora la isla y encuentra el mejor loot.' }
+  restart(): void { this.matchState = 'playing'; this.health = 100; this.shield = 50; this.ammo = this.weaponSlots[this.activeSlot].magazine; this.reserve = 240; this.stormRadius = 100; this.stormTimer = 0; this.kills = 0; this.avatar.position.copy(SPAWN); this.avatar.position.y = this.arena.heightAt(this.avatar.position.x, this.avatar.position.z); this.camera.yaw = Math.PI; this.velocity.set(0, 0, 0); this.chests.forEach(chest => { chest.opened = false; chest.openAmount = 0; chest.lid.rotation.x = 0 }); this.message = 'Nueva partida: explora la isla y encuentra el mejor loot.' }
   setQuality(quality: Quality): void { this.renderer.applyQuality(quality) }
   setInput(x: number, y: number, lookX = 0, lookY = 0): void { this.move.x = x; this.move.y = y; this.inputLook = { x: lookX, y: lookY } }
   request(action: 'interact' | 'dash' | 'ability' | 'reload' | 'camera' | 'restart' | 'jump'): void {
@@ -188,7 +188,7 @@ export class Game {
     const wanted = direction.clone().multiplyScalar(base * factor)
     const accel = direction.lengthSq() > 0.01 ? 14 : 18
     this.velocity.lerp(wanted, Math.min(1, dt * accel))
-    if (this.matchState === 'playing') { this.avatar.position.addScaledVector(this.velocity, dt); this.resolveCollisions(this.avatar.position); this.avatar.position.x = clamp(this.avatar.position.x, -this.arena.bounds + 2, this.arena.bounds - 2); this.avatar.position.z = clamp(this.avatar.position.z, -this.arena.bounds + 2, this.arena.bounds - 2) }
+    if (this.matchState === 'playing') { this.avatar.position.addScaledVector(this.velocity, dt); this.resolveCollisions(this.avatar.position); this.avatar.position.x = clamp(this.avatar.position.x, -this.arena.bounds + 2, this.arena.bounds - 2); this.avatar.position.z = clamp(this.avatar.position.z, -this.arena.bounds + 2, this.arena.bounds - 2); if (this.grounded) this.avatar.position.y = this.arena.heightAt(this.avatar.position.x, this.avatar.position.z) }
     if (!this.grounded) { this.verticalVelocity -= 14 * dt; this.avatar.position.y += this.verticalVelocity * dt; if (this.avatar.position.y <= 0) { this.avatar.position.y = 0; this.verticalVelocity = 0; this.grounded = true } }
     this.avatar.scale.y = 1 - this.crouchBlend * 0.18
     this.updateStorm(dt)

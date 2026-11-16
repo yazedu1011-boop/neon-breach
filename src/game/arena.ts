@@ -65,15 +65,49 @@ export class Arena {
     this.skyline()
   }
 
+  heightAt(x: number, z: number): number {
+    const edge = Math.max(0, Math.hypot(x, z) - 52) * 0.045
+    const ridgeA = Math.max(0, 1 - Math.hypot(x + 48, z - 38) / 38) * 5.4
+    const ridgeB = Math.max(0, 1 - Math.hypot(x - 48, z + 38) / 34) * 4.4
+    const ridgeC = Math.max(0, 1 - Math.hypot(x - 4, z - 78) / 32) * 3.6
+    const valley = Math.max(0, 1 - Math.hypot(x, z + 12) / 28) * 0.65
+    return Math.max(0, edge + ridgeA + ridgeB + ridgeC - valley)
+  }
+
   private ground(): void {
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(236, 236, 1, 1), mat(C.ground))
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.world.add(floor)
-    const zones: Array<[number, number, number, number, string]> = [
-      [-55, -50, 62, 62, '#243149'], [55, -45, 58, 62, '#1f2a3c'], [-55, 55, 66, 66, '#173026'],
-      [55, 55, 60, 60, '#2b2544'], [0, 92, 120, 30, '#3a2a22'], [0, 0, 40, 40, '#2d2233'],
-    ]
-    for (const [x, z, w, d, color] of zones) { const patch = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat(color)); patch.rotation.x = -Math.PI / 2; patch.position.set(x, 0.02, z); patch.receiveShadow = true; this.world.add(patch) }
-    const grid = new THREE.GridHelper(236, 59, '#1d2c42', '#162236'); grid.position.y = 0.01; const gm = grid.material as THREE.Material; gm.transparent = true; gm.opacity = 0.35; this.world.add(grid)
+    const segments = 72; const size = 236
+    const geometry = new THREE.PlaneGeometry(size, size, segments, segments); geometry.rotateX(-Math.PI / 2)
+    const positions = geometry.attributes.position as THREE.BufferAttribute; const colors: number[] = []
+    const grass = new THREE.Color('#4f8b45'); const lightGrass = new THREE.Color('#79ae51'); const dirt = new THREE.Color('#8a6543'); const sand = new THREE.Color('#c4a56e')
+    for (let i = 0; i < positions.count; i += 1) {
+      const x = positions.getX(i); const z = positions.getZ(i); const distance = Math.hypot(x, z); const edge = Math.max(0, Math.min(1, (distance - 74) / 38))
+      positions.setY(i, this.heightAt(x, z) - edge * 2.2)
+      const c = distance > 82 ? sand : distance > 72 ? dirt : ((Math.floor(x / 8) + Math.floor(z / 8)) % 3 === 0 ? lightGrass : grass)
+      colors.push(c.r, c.g, c.b)
+    }
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geometry.computeVertexNormals()
+    const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.04 })
+    const terrain = new THREE.Mesh(geometry, terrainMat); terrain.receiveShadow = true; this.world.add(terrain)
+    const water = new THREE.Mesh(new THREE.CircleGeometry(175, 64), new THREE.MeshStandardMaterial({ color: '#1e6b78', roughness: 0.22, metalness: 0.18, transparent: true, opacity: 0.82 }))
+    water.rotation.x = -Math.PI / 2; water.position.y = -2.1; this.world.add(water)
+    const shallow = new THREE.Mesh(new THREE.RingGeometry(76, 92, 64), new THREE.MeshStandardMaterial({ color: '#c4a56e', roughness: 1 }))
+    shallow.rotation.x = -Math.PI / 2; shallow.position.y = -0.18; this.world.add(shallow)
+    const pathMat = new THREE.MeshStandardMaterial({ color: '#806044', roughness: 1 })
+    for (const [x, z, w, d, rotation] of [[0, 35, 9, 90, 0], [-35, 0, 8, 70, Math.PI / 2], [35, 4, 7, 76, Math.PI / 2]] as Array<[number, number, number, number, number]>) {
+      const path = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat); path.rotation.x = -Math.PI / 2; path.rotation.z = rotation; path.position.set(x, 0.08, z); this.world.add(path)
+    }
+    this.addPalmGroves()
+  }
+
+  private addPalmGroves(): void {
+    const trunkMat = mat('#765039'); const leafMat = mat('#2f7545')
+    for (let i = 0; i < 22; i += 1) {
+      const angle = i * 2.399; const radius = 58 + (i % 5) * 5; const x = Math.cos(angle) * radius; const z = Math.sin(angle) * radius
+      const group = new THREE.Group(); group.position.set(x, this.heightAt(x, z), z); group.rotation.y = angle
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.32, 3.2 + (i % 4) * 0.5, 7), trunkMat); trunk.position.y = 1.6; trunk.rotation.z = (i % 2 ? -1 : 1) * 0.08; trunk.castShadow = true; group.add(trunk)
+      for (let leaf = 0; leaf < 7; leaf += 1) { const frond = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 2.8), leafMat); frond.position.y = 3.35; frond.rotation.y = leaf * Math.PI / 3.5; frond.rotation.x = -0.25; frond.castShadow = true; group.add(frond) }
+      this.world.add(group)
+    }
   }
 
   private city(): void {
