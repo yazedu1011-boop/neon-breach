@@ -23,14 +23,6 @@ type Chest = { root: THREE.Group; lid: THREE.Object3D; opened: boolean; openAmou
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 const neon = (color: string, intensity = 1.6) => new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: 0.42, emissive: color, emissiveIntensity: intensity })
 const SPAWN = new THREE.Vector3(0, 0, 68)
-let barMap: THREE.Texture | undefined
-function healthBarTexture(): THREE.Texture {
-  if (barMap) return barMap
-  const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 8
-  const context = canvas.getContext('2d')!
-  context.fillStyle = '#ffffff'; context.beginPath(); context.roundRect(0, 0, 64, 8, 4); context.fill()
-  barMap = new THREE.CanvasTexture(canvas); barMap.colorSpace = THREE.SRGBColorSpace; return barMap
-}
 
 /** Humanoide articulado de respaldo: nunca una cápsula. */
 function createHumanoid(suit: string, accent: string): CharacterRig {
@@ -109,7 +101,7 @@ export class Game {
   private reloadTimer = 0
   private abilityCooldown = 0
   private dashCooldown = 0
-  private message = 'Salta a Fracture Island: abre cofres y sé el último en pie.'
+  private message = 'Explora Bermuda Rift: abre cofres y sobrevive a la tormenta.'
   private npcMessage = 'Busca a Aster Quill en la ciudad vertical.'
   private chestPrompt = ''
   private requestedInteract = false
@@ -141,7 +133,6 @@ export class Game {
     this.arena.scene.add(this.effects.mesh)
     this.createAvatar()
     this.createWeapon()
-    this.createBots()
     this.createChests()
     this.createNpcs()
     const storm = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 60, 48, 1, true), new THREE.MeshBasicMaterial({ color: '#ff3b9d', transparent: true, opacity: 0.14, side: THREE.BackSide, depthWrite: false }))
@@ -154,9 +145,9 @@ export class Game {
     this.heroPrototype = model; this.heroClips = clips
     this.applyCharacterModel()
   }
-  start(): void { this.started = true; this.matchState = 'playing'; this.message = 'Abre cofres, elimina a los 12 rivales y sobrevive a la tormenta.'; this.avatar.visible = true; this.applyCharacterModel(); this.avatar.position.copy(SPAWN); this.camera.yaw = Math.PI; this.camera.pitch = -0.12 }
+  start(): void { this.started = true; this.matchState = 'playing'; this.message = 'Explora la isla, abre cofres y sobrevive a la tormenta.'; this.avatar.visible = true; this.applyCharacterModel(); this.avatar.position.copy(SPAWN); this.camera.yaw = Math.PI; this.camera.pitch = -0.12 }
   leave(): void { this.started = false; this.score = 0; this.kills = 0; this.avatar.position.copy(SPAWN); this.message = 'Sesión local cerrada.' }
-  restart(): void { this.matchState = 'playing'; this.health = 100; this.shield = 50; this.ammo = this.weaponSlots[this.activeSlot].magazine; this.reserve = 240; this.stormRadius = 100; this.stormTimer = 0; this.kills = 0; this.avatar.position.copy(SPAWN); this.camera.yaw = Math.PI; this.velocity.set(0, 0, 0); this.bots.forEach((bot, index) => this.respawnBot(bot, index)); this.chests.forEach(chest => { chest.opened = false; chest.openAmount = 0; chest.lid.rotation.x = 0 }); this.message = 'Nueva partida: 12 rivales en Fracture Island.' }
+  restart(): void { this.matchState = 'playing'; this.health = 100; this.shield = 50; this.ammo = this.weaponSlots[this.activeSlot].magazine; this.reserve = 240; this.stormRadius = 100; this.stormTimer = 0; this.kills = 0; this.avatar.position.copy(SPAWN); this.camera.yaw = Math.PI; this.velocity.set(0, 0, 0); this.chests.forEach(chest => { chest.opened = false; chest.openAmount = 0; chest.lid.rotation.x = 0 }); this.message = 'Nueva partida: explora la isla y encuentra el mejor loot.' }
   setQuality(quality: Quality): void { this.renderer.applyQuality(quality) }
   setInput(x: number, y: number, lookX = 0, lookY = 0): void { this.move.x = x; this.move.y = y; this.inputLook = { x: lookX, y: lookY } }
   request(action: 'interact' | 'dash' | 'ability' | 'reload' | 'camera' | 'restart' | 'jump'): void {
@@ -176,7 +167,7 @@ export class Game {
   setFire(held: boolean): void { if (held) this.shootIfReady(false) }
   getHud(): GameHud {
     const spec = this.weaponSlots[this.activeSlot]
-    return { health: this.health, shield: this.shield, ammo: this.ammo, reserve: this.reserve, mode: this.camera.mode, ability: this.abilityCooldown, dash: this.dashCooldown, botsLeft: this.bots.filter(bot => bot.alive).length, kills: this.kills, score: this.score, message: this.message, npc: this.npcMessage, fps: this.fps, activeSlot: this.activeSlot, weaponName: spec.name, weaponSlots: this.weaponSlots.map(item => item.short), speedModifier: this.speedFactor, storm: this.stormRadius / 100, aiming: this.camera.aiming, chestPrompt: this.chestPrompt, matchState: this.matchState }
+    return { health: this.health, shield: this.shield, ammo: this.ammo, reserve: this.reserve, mode: this.camera.mode, ability: this.abilityCooldown, dash: this.dashCooldown, botsLeft: 0, kills: this.kills, score: this.score, message: this.message, npc: this.npcMessage, fps: this.fps, activeSlot: this.activeSlot, weaponName: spec.name, weaponSlots: this.weaponSlots.map(item => item.short), speedModifier: this.speedFactor, storm: this.stormRadius / 100, aiming: this.camera.aiming, chestPrompt: this.chestPrompt, matchState: this.matchState }
   }
 
   step(dt: number, fireHeld = false, sprint = false, crouch = false, aiming = false): void {
@@ -206,8 +197,7 @@ export class Game {
     if (this.requestedReload) { this.reload(); this.requestedReload = false }
     if (fireHeld) this.shootIfReady(ads)
     if (this.reloadTimer === 0 && this.ammo === 0 && this.reserve > 0) this.reload()
-    this.updateBots(dt)
-    this.updateChests(dt)
+        this.updateChests(dt)
     const moving = this.velocity.lengthSq() > 0.4
     this.animatePlayer(moving, dt)
     this.interactIfRequested()
@@ -217,7 +207,7 @@ export class Game {
     this.weapon.visible = this.started && this.camera.mode === 'fps'
     if (this.playerRig && !this.heroPrototype) this.playerRig.group.rotation.y = this.camera.yaw + Math.PI
     this.updateChestPrompt()
-    if (this.started && this.matchState === 'playing' && this.bots.every(bot => !bot.alive)) { this.matchState = 'victory'; this.message = '¡VICTORIA DE FRACTURA! Último en pie.'; this.score += 500; this.playBuffer(this.audioBuffers.reward) }
+    
     const elapsed = performance.now() - before; if (elapsed > 10) this.fps = Math.min(this.fps, 120)
   }
   render(frameSeconds: number): void { this.renderer.render(this.arena.scene, this.camera.camera); for (const t of this.tracers) t.line.visible = t.life > 0; void frameSeconds }
@@ -269,20 +259,6 @@ export class Game {
       this.playerRig.limbs.arms[0].rotation.x = -swing * 0.7; this.playerRig.limbs.arms[1].rotation.x = swing * 0.7
     }
   }
-  private createBots(): void {
-    for (let index = 0; index < 12; index += 1) {
-      const root = new THREE.Group(); this.arena.addDynamic(root)
-      const bar = new THREE.Sprite(new THREE.SpriteMaterial({ map: healthBarTexture(), color: '#ff3b9d', depthTest: true, transparent: true, opacity: 0.95 })); bar.scale.set(0.8, 0.1, 1); bar.position.y = 2.3; bar.visible = false; root.add(bar)
-      const rig = this.buildRig('#4a2430', '#ff3b9d'); root.add(rig.group)
-      const bot: Bot = { root, hp: 100, maxHp: 100, alive: true, fire: 0, think: 0, los: false, target: new THREE.Vector3(), label: `RIVAL-${String(index + 1).padStart(2, '0')}`, bar, speed: 3.4 + Math.random(), mixer: rig.mixer, idle: rig.idle, walk: rig.walk, limbs: rig.limbs, group: rig.group }
-      this.bots.push(bot); this.respawnBot(bot, index)
-    }
-  }
-  private respawnBot(bot: Bot, index: number): void {
-    const angle = (index / 12) * Math.PI * 2 + Math.random() * 0.3; const radius = 30 + Math.random() * 62
-    bot.root.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius)
-    bot.hp = bot.maxHp; bot.alive = true; bot.root.visible = true; bot.bar.scale.set(0.8, 0.1, 1); bot.bar.visible = false; bot.target.copy(bot.root.position); bot.fire = 1 + Math.random()
-  }
   private createChests(): void {
     const tiers = [['normal', '#ffcc66'], ['peligroso', '#ff3b9d'], ['evento', '#65f6ff']]
     this.arena.chestSpots.slice(0, 24).forEach((spot, index) => {
@@ -317,46 +293,6 @@ export class Game {
     const distance = Math.hypot(this.avatar.position.x, this.avatar.position.z)
     if (distance > this.stormRadius) this.damagePlayer(3.5 * dt)
   }
-  private updateBots(dt: number): void {
-    const player = this.avatar.position
-    for (const bot of this.bots) {
-      if (!bot.alive) continue
-      bot.think -= dt; bot.fire -= dt
-      const toPlayer = new THREE.Vector3().subVectors(player, bot.root.position); const distance = toPlayer.length()
-      if (bot.think <= 0) {
-        bot.think = 0.4 + Math.random() * 0.4
-        bot.los = distance < 46 && !this.blocked(bot.root.position, player)
-        if (!bot.los && Math.random() < 0.3) bot.target.set(bot.root.position.x + (Math.random() - 0.5) * 40, 0, bot.root.position.z + (Math.random() - 0.5) * 40)
-      }
-      let moving = false
-      if (bot.los && distance < 46) {
-        const desired = distance > 14 ? 1 : (distance < 8 ? -1 : 0)
-        if (desired !== 0) { bot.root.position.addScaledVector(toPlayer.normalize(), desired * bot.speed * 0.55 * dt); moving = true }
-        bot.group.rotation.y = Math.atan2(player.x - bot.root.position.x, player.z - bot.root.position.z)
-        if (bot.fire <= 0) { bot.fire = 0.55 + Math.random() * 0.5; this.botShoot(bot, distance) }
-      } else {
-        const direction = new THREE.Vector3().subVectors(bot.target, bot.root.position); direction.y = 0
-        if (direction.length() > 1.2) { bot.root.position.addScaledVector(direction.normalize(), bot.speed * dt); bot.group.rotation.y = Math.atan2(direction.x, direction.z); moving = true }
-      }
-      bot.root.position.x = clamp(bot.root.position.x, -this.arena.bounds + 3, this.arena.bounds - 3); bot.root.position.z = clamp(bot.root.position.z, -this.arena.bounds + 3, this.arena.bounds - 3)
-      if (bot.walk && bot.idle) { if (moving && !bot.walk.isRunning()) { bot.idle.fadeOut(0.2); bot.walk.reset().fadeIn(0.2).play() } else if (!moving && !bot.idle.isRunning()) { bot.walk.fadeOut(0.2); bot.idle.reset().fadeIn(0.2).play() } }
-      bot.mixer?.update(dt)
-      if (bot.limbs && !this.heroPrototype) { const swing = moving ? Math.sin(this.time * 9 + bot.root.position.x) * 0.55 : 0; bot.limbs.legs[0].rotation.x = swing; bot.limbs.legs[1].rotation.x = -swing; bot.limbs.arms[0].rotation.x = -swing * 0.7; bot.limbs.arms[1].rotation.x = swing * 0.7 }
-    }
-  }
-  private blocked(from: THREE.Vector3, to: THREE.Vector3): boolean {
-    const direction = new THREE.Vector3().subVectors(to, from); const length = direction.length(); if (length < 1) return false
-    this.ray.set(new THREE.Vector3(from.x, 1.5, from.z), direction.normalize()); this.ray.far = length - 0.6
-    return this.ray.intersectObject(this.arena.world, true).length > 0
-  }
-  private botShoot(bot: Bot, distance: number): void {
-    const origin = bot.root.position.clone().setY(1.5)
-    const end = this.avatar.position.clone().setY(1.3)
-    const geometry = new THREE.BufferGeometry().setFromPoints([origin, end]); const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: '#ff3b9d', transparent: true, opacity: 0.75 }))
-    this.arena.scene.add(line); this.tracers.push({ line, life: 0.07 })
-    const chance = clamp(0.62 - distance * 0.008, 0.18, 0.62)
-    if (Math.random() < chance) { this.damagePlayer(4 + Math.random() * 3); this.effects.burst(end, '#ff3b9d', 6, 2); this.camera.addShake(0.08) }
-  }
   private damagePlayer(amount: number): void {
     if (this.matchState !== 'playing') return
     const shieldDamage = Math.min(this.shield, amount); this.shield -= shieldDamage; this.health = Math.max(0, this.health - (amount - shieldDamage))
@@ -385,7 +321,7 @@ export class Game {
     const bot = this.bots.find(item => item.root === node)!
     bot.hp -= spec.damage; bot.bar.visible = bot.hp > 0; bot.bar.scale.x = 0.8 * Math.max(0, bot.hp / bot.maxHp)
     this.effects.burst(hit.point, bot.hp <= 0 ? '#ffcc66' : '#65f6ff', bot.hp <= 0 ? 26 : 8, 3)
-    if (bot.hp <= 0) { bot.alive = false; bot.root.visible = false; this.kills += 1; this.score += 150; this.message = `${bot.label} eliminado · quedan ${this.bots.filter(item => item.alive).length}`; this.playBuffer(this.audioBuffers.reward) }
+    if (bot.hp <= 0) { bot.alive = false; bot.root.visible = false; this.kills += 1; this.score += 150; this.message = `${bot.label} eliminado`; this.playBuffer(this.audioBuffers.reward) }
     else this.message = `${bot.label} impactado · ${Math.round(bot.hp)}%`
   }
   private updateChests(dt: number): void {
@@ -405,7 +341,7 @@ export class Game {
   private doAbility(): void {
     if (!this.started || this.abilityCooldown > 0) return
     this.abilityCooldown = 8; this.effects.ring(this.avatar.position.clone().setY(1.3), '#ff3b9d')
-    this.bots.forEach(bot => { if (bot.alive && bot.root.position.distanceTo(this.avatar.position) < 24) { bot.bar.visible = true; bot.bar.scale.set(1.1, 0.14, 1) } })
+    
     this.message = 'PRISMA DE RASTREO: rivales cercanos marcados.'; this.playBuffer(this.audioBuffers.dash)
   }
   private interactIfRequested(): void {

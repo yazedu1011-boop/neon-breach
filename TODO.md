@@ -77,3 +77,12 @@
 - [ ] Cofres con animación de apertura completa y loot visual.
 - [ ] IA de bots con patrulla, cobertura y uso de habilidades.
 - [ ] Multijugador online autoritativo para battle royale.
+
+## Exploración tropical y acceso original (iteración actual)
+- [x] Retirar completamente bots, barras de vida de rivales y daño procedente de IA.
+- [x] Añadir pasto procedural texturizado, montañas por capas, subidas/rampas y cabañas originales.
+- [x] Mantener cofres interactivos con apertura progresiva de tapa y loot por rareza.
+- [x] Añadir splash/wordmark original de Neon Breach con subtítulo FRACTURE OPS.
+- [x] Mostrar botones de Google, Facebook y Usuario sin fingir autenticación.
+- [ ] Conectar Google OAuth y Facebook Login mediante backend, redirect URIs y credenciales del proyecto.
+

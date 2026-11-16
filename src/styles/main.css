@@ -159,3 +159,11 @@ body.has-touch .screen-hud.is-active .touch{display:block}
 .loadout-bar{top:auto;bottom:18vh;left:50%;transform:translateX(-50%)}
 .hud-bottom{bottom:.8vh;width:min(38vw,300px)}
 @media (max-height:430px){.loadout-bar{bottom:19vh}.npc-toast{top:6vh;max-width:40vw}.hud-bottom{bottom:.4vh;width:min(34vw,260px)}}
+
+/* Original Neon Breach launch identity — no Garena/Free Fire branding */
+.boot-emblem{position:relative;display:grid;place-items:center;width:92px;height:72px;border:2px solid var(--cyan);transform:skew(-12deg);box-shadow:0 0 30px rgba(101,246,255,.18),inset 0 0 20px rgba(255,59,157,.12)}
+.boot-emblem:before,.boot-emblem:after{content:'';position:absolute;background:var(--pink);height:3px;width:120px;left:-14px}.boot-emblem:before{top:13px}.boot-emblem:after{bottom:13px;background:var(--cyan)}
+.boot-emblem .boot-mark{transform:skew(12deg);font-size:25px;z-index:1}.boot-emblem i{position:absolute;width:18px;height:18px;border:2px solid var(--amber);border-radius:50%;right:-10px;top:-10px;box-shadow:0 0 14px var(--amber)}
+.boot-subtitle{color:var(--amber);letter-spacing:.55em;font-size:11px;margin-top:-8px}
+.screen-boot h1{margin-top:4px}
+.screen-title .login{cursor:pointer}

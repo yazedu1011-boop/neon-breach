@@ -2,13 +2,23 @@ import * as THREE from 'three'
 
 export type Collider = { minX: number; maxX: number; minZ: number; maxZ: number }
 
-const C = { ground: '#1a2436', floor: '#111a2c', panel: '#1b2942', cyan: '#65f6ff', magenta: '#ff3b9d', amber: '#ffcc66', steel: '#34445d', glass: '#2a5d7a' }
+const C = { ground: '#294b36', floor: '#162b22', panel: '#1b2942', cyan: '#65f6ff', magenta: '#ff3b9d', amber: '#ffcc66', steel: '#34445d', glass: '#2a5d7a', grass: '#4f8b45', grassDark: '#244c32', earth: '#6b4d36', rock: '#59645b' }
 const UNIT = new THREE.BoxGeometry(1, 1, 1)
 const materials = new Map<string, THREE.MeshStandardMaterial>()
+function grassTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#4f8b45'; ctx.fillRect(0, 0, 128, 128)
+  let seed = 77
+  for (let i = 0; i < 900; i += 1) { seed = (seed * 1664525 + 1013904223) >>> 0; const x = seed % 128; seed = (seed * 1664525 + 1013904223) >>> 0; const y = seed % 128; ctx.fillStyle = (seed & 1) ? '#376b3a' : '#72a94e'; ctx.fillRect(x, y, 1 + (seed % 2), 3 + (seed % 5)) }
+  const texture = new THREE.CanvasTexture(canvas); texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(18, 18); texture.colorSpace = THREE.SRGBColorSpace; return texture
+}
+const GRASS = grassTexture()
+
 function mat(color: string, emissive = '#000000', intensity = 0): THREE.MeshStandardMaterial {
   const key = `${color}|${emissive}|${intensity}`
   let material = materials.get(key)
-  if (!material) { material = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.3, emissive, emissiveIntensity: intensity }); materials.set(key, material) }
+  if (!material) { material = new THREE.MeshStandardMaterial({ color, roughness: 0.86, metalness: 0.12, emissive, emissiveIntensity: intensity }); if (color === C.ground) material.map = GRASS; materials.set(key, material) }
   return material
 }
 
@@ -48,13 +58,15 @@ export class Arena {
     this.forest()
     this.orbital()
     this.canyon()
+    this.mountains()
+    this.structures()
     this.center()
     this.boundary()
     this.skyline()
   }
 
   private ground(): void {
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(236, 236), mat(C.ground))
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(236, 236, 1, 1), mat(C.ground))
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.world.add(floor)
     const zones: Array<[number, number, number, number, string]> = [
       [-55, -50, 62, 62, '#243149'], [55, -45, 58, 62, '#1f2a3c'], [-55, 55, 66, 66, '#173026'],
@@ -146,6 +158,29 @@ export class Arena {
     for (let i = 0; i < 8; i += 1) { const a = (i / 8) * Math.PI * 2; this.box(4, 2.4, 1.2, Math.cos(a) * 15, 1.2, Math.sin(a) * 15, mat(C.panel), true) }
     for (let i = 0; i < 4; i += 1) { const a = (i / 4) * Math.PI * 2 + 0.4; this.chestSpot(Math.cos(a) * 20, Math.sin(a) * 20) }
     for (let i = 0; i < 6; i += 1) { const a = (i / 6) * Math.PI * 2; this.chestSpot(Math.cos(a) * 46, Math.sin(a) * 46) }
+  }
+
+
+  private mountains(): void {
+    const ring = [[-96, -72, 18, 28], [-82, 80, 24, 34], [88, 72, 22, 30], [94, -54, 17, 26], [0, 112, 30, 38]] as Array<[number, number, number, number]>
+    for (const [x, z, radius, height] of ring) {
+      const mountain = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 9), mat(C.rock)); mountain.position.set(x, height / 2 - 2, z); mountain.rotation.y = (x + z) * 0.03; mountain.castShadow = true; mountain.receiveShadow = true; this.world.add(mountain)
+      const grassCap = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.72, height * 0.55, 9), mat(C.grassDark)); grassCap.position.set(x, height * 0.67, z); grassCap.rotation.y = mountain.rotation.y; grassCap.castShadow = true; this.world.add(grassCap)
+    }
+  }
+
+  private structures(): void {
+    const wood = mat('#785239'); const roof = mat('#263e35'); const trim = mat(C.amber, C.amber, 0.35)
+    for (const [x, z, rot] of [[-22, 50, 0.2], [22, 46, -0.3], [76, 22, 0.1]] as Array<[number, number, number]>) {
+      const hut = new THREE.Group(); hut.position.set(x, 0, z); hut.rotation.y = rot
+      const walls = new THREE.Mesh(new THREE.BoxGeometry(8, 3.4, 6), wood); walls.position.y = 1.7; walls.castShadow = true; hut.add(walls)
+      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(5.8, 2.5, 4), roof); roofMesh.rotation.y = Math.PI / 4; roofMesh.position.y = 4.5; roofMesh.castShadow = true; hut.add(roofMesh)
+      const sign = new THREE.Mesh(new THREE.BoxGeometry(2, 0.35, 0.08), trim); sign.position.set(0, 2.4, 3.05); hut.add(sign)
+      this.world.add(hut); this.colliders.push({ minX: x - 4, maxX: x + 4, minZ: z - 3, maxZ: z + 3 })
+    }
+    for (const [x, z, w] of [[-42, 17, 26], [34, 15, 22]] as Array<[number, number, number]>) {
+      const ramp = new THREE.Mesh(new THREE.BoxGeometry(w, 1.2, 5), mat(C.earth)); ramp.position.set(x, 0.6, z); ramp.rotation.z = x < 0 ? -0.12 : 0.12; ramp.castShadow = true; this.world.add(ramp)
+    }
   }
 
   private boundary(): void {
