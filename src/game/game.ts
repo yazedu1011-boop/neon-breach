@@ -127,6 +127,10 @@ export class Game {
   private stormMesh: THREE.Mesh
   private verticalVelocity = 0
   private grounded = true
+  private jumpBlend = 0
+  private reloadPose = 0
+  private switchPose = 0
+  private recoilPose = 0
 
   constructor(private readonly renderer: Renderer, private readonly audio: Audio) {
     this.arena = new Arena(renderer.shadowMapSize)
@@ -153,12 +157,12 @@ export class Game {
   request(action: 'interact' | 'dash' | 'ability' | 'reload' | 'camera' | 'restart' | 'jump'): void {
     if (action === 'interact') this.requestedInteract = true; if (action === 'dash') this.requestedDash = true; if (action === 'ability') this.requestedAbility = true
     if (action === 'reload') this.requestedReload = true; if (action === 'camera') this.requestedCamera = true; if (action === 'restart') this.requestedRestart = true
-    if (action === 'jump' && this.grounded && this.matchState === 'playing') { this.verticalVelocity = 5.2; this.grounded = false }
+    if (action === 'jump' && this.grounded && this.matchState === 'playing') { this.verticalVelocity = 5.2; this.grounded = false; this.message = 'Salto.' }
   }
   selectSlot(slot: number): void {
     const next = clamp(Math.round(slot), 0, this.weaponSlots.length - 1)
     if (next === this.activeSlot) return
-    this.activeSlot = next; this.fireCooldown = 0.16
+    this.activeSlot = next; this.fireCooldown = 0.16; this.switchPose = 1
     const spec = this.weaponSlots[next]
     this.ammo = Math.min(spec.magazine, Math.max(1, this.ammo))
     this.weapon.traverse(object => { if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial) object.material.color.set(spec.color) })
@@ -199,7 +203,8 @@ export class Game {
     if (this.reloadTimer === 0 && this.ammo === 0 && this.reserve > 0) this.reload()
         this.updateChests(dt)
     const moving = this.velocity.lengthSq() > 0.4
-    this.animatePlayer(moving, dt)
+    const airborne = !this.grounded
+    this.animatePlayer(moving, dt, crouch, airborne, firing)
     this.interactIfRequested()
     this.updateTracers(dt); this.effects.update(dt)
     this.camera.update(this.avatar.position, dt, this.reducedMotion)
@@ -247,16 +252,30 @@ export class Game {
     for (const bot of this.bots) { bot.root.children.slice().forEach(child => bot.root.remove(child)); const botRig = this.buildRig('#4a2430', '#ff3b9d'); bot.root.add(botRig.group); bot.mixer = botRig.mixer; bot.idle = botRig.idle; bot.walk = botRig.walk; bot.limbs = botRig.limbs }
     for (const npc of this.npcs) { npc.root.children.filter(child => child.userData.npcVisual).forEach(child => npc.root.remove(child)); const npcRig = this.buildRig('#5a4a2a', '#ffcc66'); npcRig.group.userData.npcVisual = true; npc.root.add(npcRig.group) }
   }
-  private animatePlayer(moving: boolean, dt: number): void {
+  private animatePlayer(moving: boolean, dt: number, crouching: boolean, airborne: boolean, firing: boolean): void {
     if (this.playerWalk && this.playerIdle) {
       if (moving && !this.playerWalk.isRunning()) { this.playerIdle.fadeOut(0.18); this.playerWalk.reset().fadeIn(0.18).play() }
       else if (!moving && !this.playerIdle.isRunning()) { this.playerWalk.fadeOut(0.18); this.playerIdle.reset().fadeIn(0.18).play() }
     }
     this.playerMixer?.update(dt)
+    this.jumpBlend += ((airborne ? 1 : 0) - this.jumpBlend) * Math.min(1, dt * 10)
+    this.reloadPose = Math.max(0, this.reloadPose - dt * 2.8); this.switchPose = Math.max(0, this.switchPose - dt * 4.5); this.recoilPose = Math.max(0, this.recoilPose - dt * 9)
+    if (this.playerRig) {
+      const pose = this.playerRig.group
+      pose.position.y = -this.crouchBlend * 0.16 + Math.sin(this.time * 7) * this.jumpBlend * 0.025
+      pose.rotation.z = moving && !crouching ? Math.sin(this.time * 9) * 0.025 : 0
+      pose.rotation.x = this.jumpBlend * 0.08 + this.crouchBlend * 0.12
+      pose.scale.y = 1 - this.crouchBlend * 0.12 + this.jumpBlend * 0.04
+    }
+    this.weapon.position.z = -this.recoilPose * 0.12 + this.switchPose * 0.18
+    this.weapon.rotation.y = this.switchPose * 0.35
     if (this.playerRig?.limbs && !this.heroPrototype) {
       const swing = moving ? Math.sin(this.time * 9) * 0.55 : 0
-      this.playerRig.limbs.legs[0].rotation.x = swing; this.playerRig.limbs.legs[1].rotation.x = -swing
-      this.playerRig.limbs.arms[0].rotation.x = -swing * 0.7; this.playerRig.limbs.arms[1].rotation.x = swing * 0.7
+      const crouch = this.crouchBlend * 0.55
+      this.playerRig.limbs.legs[0].rotation.x = swing + crouch; this.playerRig.limbs.legs[1].rotation.x = -swing + crouch
+      this.playerRig.limbs.arms[0].rotation.x = -swing * 0.7 - crouch; this.playerRig.limbs.arms[1].rotation.x = swing * 0.7 - crouch
+      if (airborne) { this.playerRig.limbs.legs[0].rotation.x = -0.35; this.playerRig.limbs.legs[1].rotation.x = 0.35 }
+      if (firing) { this.playerRig.limbs.arms[0].rotation.x -= 0.18; this.playerRig.limbs.arms[1].rotation.x -= 0.18 }
     }
   }
   private createChests(): void {
@@ -302,7 +321,7 @@ export class Game {
     const spec = this.weaponSlots[this.activeSlot]
     if (!this.started || this.matchState !== 'playing' || this.reloadTimer > 0 || this.fireCooldown > 0) return
     if (this.ammo <= 0) { this.reload(); return }
-    this.ammo -= 1; this.fireCooldown = spec.fireRate; this.camera.addRecoil(ads ? 0.02 : 0.045); this.camera.addShake(ads ? 0.05 : 0.12); this.playBuffer(this.audioBuffers.shot)
+    this.ammo -= 1; this.fireCooldown = spec.fireRate; this.recoilPose = 1; this.camera.addRecoil(ads ? 0.02 : 0.045); this.camera.addShake(ads ? 0.05 : 0.12); this.playBuffer(this.audioBuffers.shot)
     const origin = this.camera.camera.position.clone()
     const direction = new THREE.Vector3(); this.camera.camera.getWorldDirection(direction)
     const spread = ads ? spec.spread * 0.18 : spec.spread
@@ -331,7 +350,7 @@ export class Game {
     const nearest = this.chests.filter(chest => !chest.opened).map(chest => ({ chest, distance: chest.position.distanceTo(this.avatar.position) })).sort((a, b) => a.distance - b.distance)[0]
     this.chestPrompt = nearest && nearest.distance < 3.2 ? `Cofre ${nearest.chest.tier} · ABRIR` : ''
   }
-  private reload(): void { const capacity = this.weaponSlots[this.activeSlot].magazine; if (this.reloadTimer > 0 || this.ammo >= capacity || this.reserve <= 0) return; this.reloadTimer = this.activeSlot === 1 ? 1.35 : 1.05; window.setTimeout(() => { const need = capacity - this.ammo; const take = Math.min(need, this.reserve); this.ammo += take; this.reserve -= take; this.message = 'Cargador listo.' }, this.reloadTimer * 1000 + 40) }
+  private reload(): void { this.reloadPose = 1; this.message = 'Recargando...'; const capacity = this.weaponSlots[this.activeSlot].magazine; if (this.reloadTimer > 0 || this.ammo >= capacity || this.reserve <= 0) return; this.reloadTimer = this.activeSlot === 1 ? 1.35 : 1.05; window.setTimeout(() => { const need = capacity - this.ammo; const take = Math.min(need, this.reserve); this.ammo += take; this.reserve -= take; this.message = 'Cargador listo.' }, this.reloadTimer * 1000 + 40) }
   private doDash(direction: THREE.Vector3): void {
     if (!this.started || this.dashCooldown > 0) return
     const dir = direction.lengthSq() > 0.01 ? direction.normalize() : new THREE.Vector3(Math.sin(this.camera.yaw), 0, Math.cos(this.camera.yaw))

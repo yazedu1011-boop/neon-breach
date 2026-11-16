@@ -167,3 +167,9 @@ body.has-touch .screen-hud.is-active .touch{display:block}
 .boot-subtitle{color:var(--amber);letter-spacing:.55em;font-size:11px;margin-top:-8px}
 .screen-boot h1{margin-top:4px}
 .screen-title .login{cursor:pointer}
+
+
+/* Extra mobile combat control: sprint/auto-run */
+.touch-actions .btn-sprint{right:27vw;bottom:28vh;width:calc(58px * var(--hud-scale));height:calc(58px * var(--hud-scale));border-color:rgba(140,255,176,.8);color:#8cffb0}
+@media (max-height:430px){.touch-actions .btn-sprint{right:27vw;bottom:29vh;width:calc(52px * var(--hud-scale));height:calc(52px * var(--hud-scale))}}
+#ui.left-handed .touch-actions .btn-sprint{right:auto;left:27vw}

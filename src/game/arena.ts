@@ -14,6 +14,14 @@ function grassTexture(): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas); texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(18, 18); texture.colorSpace = THREE.SRGBColorSpace; return texture
 }
 const GRASS = grassTexture()
+function terrainDetailTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256
+  const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#6a964d'; ctx.fillRect(0, 0, 256, 256)
+  let seed = 418
+  for (let i = 0; i < 2600; i += 1) { seed = (seed * 1664525 + 1013904223) >>> 0; const x = seed % 256; seed = (seed * 1664525 + 1013904223) >>> 0; const y = seed % 256; const shade = seed % 4; ctx.fillStyle = shade === 0 ? '#2f673a' : shade === 1 ? '#4f8145' : shade === 2 ? '#89a957' : '#b17d4f'; ctx.globalAlpha = shade === 3 ? 0.32 : 0.58; ctx.fillRect(x, y, 1 + (seed % 3), 2 + (seed % 5)) }
+  ctx.globalAlpha = 1; const texture = new THREE.CanvasTexture(canvas); texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(14, 14); texture.colorSpace = THREE.SRGBColorSpace; return texture
+}
+const TERRAIN_DETAIL = terrainDetailTexture()
 
 function mat(color: string, emissive = '#000000', intensity = 0): THREE.MeshStandardMaterial {
   const key = `${color}|${emissive}|${intensity}`
@@ -86,7 +94,7 @@ export class Arena {
       colors.push(c.r, c.g, c.b)
     }
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geometry.computeVertexNormals()
-    const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.04 })
+    const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: TERRAIN_DETAIL, roughness: 0.92, metalness: 0.04 })
     const terrain = new THREE.Mesh(geometry, terrainMat); terrain.receiveShadow = true; this.world.add(terrain)
     const water = new THREE.Mesh(new THREE.CircleGeometry(175, 64), new THREE.MeshStandardMaterial({ color: '#1e6b78', roughness: 0.22, metalness: 0.18, transparent: true, opacity: 0.82 }))
     water.rotation.x = -Math.PI / 2; water.position.y = -2.1; this.world.add(water)
